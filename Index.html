@@ -1,0 +1,4115 @@
+<!--
+Maintenance Tracker - JSON version (data pulled from Azure Blob Storage)
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Society Maintenance Tracker</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      /* Colors */
+      --bg: #f6f8fc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #6b7280;
+      --primary: #0b63e6;
+      --primary-weak: #eef2ff;
+      --border: #e5e7eb;
+      --shadow: 0 8px 24px rgba(15,23,42,0.06);
+      --radius: 12px;
+      
+      /* Responsive spacing */
+      --content-padding: 16px;
+      --card-padding: 16px;
+      --element-gap: 12px;
+      
+      /* Typography */
+      --base-font-size: 16px;
+      --small-font-size: 14px;
+      --heading-font-size: 20px;
+    }
+    
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Sidebar styles */
+    .sidebar{
+      position: fixed;
+      left: 0;
+      top: 0;
+      height: 100vh;
+      width: 220px;
+      /* New teal gradient for sidebar */
+      background: linear-gradient(180deg, #042f3a, #0b5568);
+      color: #ffffff;
+      box-shadow: 2px 0 18px rgba(0,0,0,0.18);
+      padding: 12px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transform: translateX(-100%);
+      transition: transform 220ms ease, width 220ms ease;
+      z-index: 9999;
+    }
+    .sidebar .sidebar-toggle{ background: transparent; border:0; font-size:20px; padding:8px; cursor:pointer }
+    .sidebar .sidebar-nav{ display:flex; flex-direction:column; gap:6px; margin-top:4px }
+    .sidebar .menu-item{ display:flex; align-items:center; gap:10px; padding:10px 10px; border-radius:8px; border:0; background:transparent; cursor:pointer; text-align:left; font-weight:500 }
+    .sidebar .menu-item .menu-icon{ font-size:18px }
+    .sidebar .menu-item .menu-label{ white-space:nowrap }
+    .sidebar .menu-item.active{ background: linear-gradient(90deg, rgba(11,99,230,0.08), rgba(11,99,230,0.03)); color:var(--primary) }
+    .sidebar.expanded{ transform: translateX(0); width:220px }
+    .sidebar.collapsed{ transform: translateX(-100%); width:64px }
+    /* Visible collapsed left bar on large screens: when collapsed we only show the toggle as a small strip */
+    .sidebar.collapsed .menu-item .menu-label{ display:none }
+    .sidebar.collapsed .menu-item{ justify-content:center }
+
+    /* Desktop: keep space for sidebar when expanded */
+    @media(min-width:900px){
+      body.sidebar-expanded{ padding-left:220px; transition: padding-left 220ms ease }
+      .sidebar.collapsed{ transform: translateX(-100%) }
+      .sidebar.expanded{ transform: translateX(0) }
+    }
+
+    /* Mobile: overlay panel when expanded */
+    @media(max-width:899px){
+      .sidebar{ width:80%; max-width:360px }
+      .sidebar.collapsed{ transform: translateX(-110%) }
+      .sidebar.expanded{ transform: translateX(0); box-shadow: 0 6px 24px rgba(0,0,0,0.18) }
+      body.sidebar-expanded{ padding-left: var(--content-padding) }
+    }
+    
+    /* Ensure collapsed sidebar is visible on desktop (narrow strip showing icons + toggle) */
+    @media(min-width:900px){
+      .sidebar.collapsed{ transform: translateX(0) !important; width:64px !important }
+      .sidebar{ left:0 }
+    }
+
+    /* Mobile visible toggle button */
+    #mobileSidebarToggle{ display:none; }
+    @media(max-width:899px){
+      /* align to page content padding and avoid the header */
+      #mobileSidebarToggle{ display:block !important; position:fixed; left:var(--content-padding); top:calc(var(--content-padding) + 6px); z-index:10002; background: #0b5568; color:#ffffff; border:0; padding:10px 12px; border-radius:8px; font-size:22px; box-shadow: 0 6px 18px rgba(0,0,0,0.2); }
+      #mobileSidebarToggle[aria-expanded="true"]{ background:#02606f }
+      /* When sidebar is expanded we hide the floating toggle (JS also controls this) */
+      body.sidebar-expanded #mobileSidebarToggle{ display:none !important }
+
+      /* Improve touch targets and spacing on mobile */
+      .sidebar .menu-item{ padding:14px 12px; font-size:16px }
+      .sidebar .menu-item .menu-label{ display:inline-block }
+
+      /* Dashboard grid adaptivity */
+      .dashboard-grid{ grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap:10px }
+      .card.small{ padding:10px }
+      canvas{ width:100% !important; min-height:120px !important }
+
+      /* Controls wrap nicer on mobile */
+      .controls{ gap:8px }
+      .controls input.search{ flex:1 1 100%; min-width:120px }
+      .controls button{ min-width:48px }
+
+      /* Ensure table scroll on small screens */
+      .table-wrap{ overflow-x:auto }
+    }
+
+    /* Extra safety: explicitly hide on desktop/laptop */
+    @media(min-width:900px){
+      #mobileSidebarToggle{ display:none !important }
+    }
+
+    /* Sidebar color overrides */
+    .sidebar { background: linear-gradient(180deg, #042f3a, #0b5568) !important; color: #ffffff !important }
+    .sidebar .sidebar-toggle { color: #ffffff !important }
+    .sidebar .menu-item { color: #e6f7ff !important }
+    .sidebar .menu-item .menu-icon { color: #cdeff6 !important }
+    .sidebar .menu-item .menu-label { color: #e6f7ff !important }
+    .sidebar .menu-item.active { background: rgba(255,255,255,0.06) !important; color:#ffffff !important }
+    .sidebar .menu-item:hover { background: rgba(255,255,255,0.03) !important }
+
+    /* Ensure desktop reserves space for collapsed sidebar */
+    @media(min-width:900px){
+      body:not(.sidebar-expanded){ padding-left:64px !important; }
+    }
+
+    html {
+      font-size: var(--base-font-size);
+      -webkit-text-size-adjust: 100%;
+    }
+    
+    body {
+      font-family: Inter, system-ui, Segoe UI, Roboto, Arial;
+      margin: 0;
+      padding: var(--content-padding);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+      min-width: 320px;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+    }
+    .ticker{position:relative;overflow:hidden;background:#fffbe6;border:1px solid #fde68a;color:#92400e;border-radius:8px;margin:0 0 12px 0}
+    .ticker__track{white-space:nowrap;display:flex;gap:48px;padding:8px 12px;animation:tickerMove 25s linear infinite}
+    @keyframes tickerMove{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    .banner{background:#fff7ed;color:#7c2d12;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;margin:0 0 12px 0;box-shadow:0 2px 8px rgba(15,23,42,0.04)}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
+    h1{margin:0 0 8px 0;font-size:20px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+    /* Month filter dropdown overlay (prevents layout shift and improves mobile behavior) */
+    .month-filter{ position: relative; display: inline-block; }
+    .month-filter .dropdown-panel{ position: absolute; left: 0; top: calc(100% + 6px); min-width: 220px; max-width: 360px; z-index: 9999; box-shadow: 0 12px 32px rgba(0,0,0,0.12); }
+    .month-filter .dropdown-panel label{ display:block; padding:6px 4px; cursor:pointer }
+    .month-filter .dropdown-panel .actions{ display:flex; gap:8px; margin-top:6px }
+    @media (max-width: 600px){
+      .month-filter{ width: 100%; }
+      .month-filter .dropdown-panel{ position: fixed; left: 8px; right: 8px; bottom: 16px; top: auto; max-height: 50vh; overflow: auto; min-width: initial; max-width: none; border-radius: 10px; }
+      #monthFilterBtn{ width: 100%; display:flex; justify-content:space-between; align-items:center }
+    }
+    input[type=text], select{padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fff}
+    input[type=text]:focus, select:focus{outline:2px solid rgba(11,99,230,0.2)}
+    button{padding:10px 14px;border-radius:10px;border:0;background:var(--primary);color:#fff;cursor:pointer;box-shadow:0 2px 6px rgba(11,99,230,0.2)}
+    button:hover{filter:brightness(0.98)}
+    button:active{transform:translateY(1px)}
+    button.ghost{background:var(--primary-weak);color:var(--primary)}
+    .tabs{display:flex;border-bottom:2px solid var(--border);margin-bottom:16px}
+    .tab{flex:1;padding:12px 16px;background:transparent;border:0;border-bottom:3px solid transparent;color:var(--muted);cursor:pointer;font-weight:500;transition:all 0.2s ease}
+    .tab:hover{color:var(--text);background:var(--primary-weak)}
+    .tab.active{color:var(--primary);border-bottom-color:var(--primary);background:var(--primary-weak)}
+    .tab-content{display:none}
+    .tab-content.active{display:block}
+    /* Table base styles */
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 12px;
+      background: white;
+      font-size: var(--base-font-size);
+    }
+    
+    table.table {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #fff;
+    }
+    
+    /* Table cells */
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #eef2f6;
+      text-align: left;
+      vertical-align: middle;
+      transition: padding 0.2s ease;
+    }
+    
+    th {
+      background: linear-gradient(180deg, #fbfdff, #f3f8ff);
+      position: sticky;
+      z-index: 10;
+      font-weight: 600;
+      white-space: nowrap;
+      font-size: 0.9rem;
+    }
+    
+    /* Sticky header */
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: white;
+    }
+    
+    thead tr:first-child th {
+      position: sticky;
+      top: 0;
+      z-index: 12;
+      background: #f3f4f6;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    
+    thead tr:last-child th {
+      background: #ffffff;
+      position: sticky;
+      top: 38px;
+      z-index: 11;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    
+    /* Table filters */
+    thead tr:last-child select {
+      width: 100%;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-size: var(--small-font-size);
+      transition: all 0.2s ease;
+    }
+    
+    thead tr:last-child select:hover {
+      border-color: #d1d5db;
+    }
+    
+    thead tr:last-child select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-weak);
+    }
+    
+    /* Table rows */
+    tbody tr:nth-child(even) td {
+      background: #fcfdff;
+    }
+    
+    tbody tr:hover td {
+      background: #f7faff;
+    }
+    
+    /* Responsive table scroll indicators */
+    .table-container::before,
+    .table-container::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(var(--_dir, 0deg), rgba(0,0,0,0.05), transparent);
+      z-index: 2;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+    
+    .table-container::before {
+      --_dir: 180deg;
+      top: 0;
+    }
+    
+    .table-container::after {
+      --_dir: 0deg;
+      bottom: 0;
+    }
+    
+    .table-container:hover::before,
+    .table-container:hover::after {
+      opacity: 1;
+    }
+    .table-container{position:relative;overflow:auto;max-height:70vh;border:1px solid #e5e7eb;border-radius:8px;background:white}
+    .table-container::after{content:'';position:sticky;bottom:0;left:0;right:0;height:4px;background:linear-gradient(180deg,transparent,rgba(0,0,0,0.05));pointer-events:none}
+    .table-container::before{content:'';position:sticky;top:88px;left:0;right:0;height:4px;background:linear-gradient(0deg,transparent,rgba(0,0,0,0.05));z-index:9;pointer-events:none}
+    .badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;background:#f1f5f9;color:#334155}
+    .paid{background:#dcfce7;color:#14532d}
+    .unpaid{background:#fee2e2;color:#991b1b}
+    .unpaid + .action-link {
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      transition: all 0.2s ease;
+    }
+    .unpaid + .action-link:hover {
+      background: #bfdbfe;
+    }
+    .stats{display:flex;gap:12px;flex-wrap:wrap}
+    .stat{padding:10px 12px;background:#f8fafc;border-radius:10px;border:1px solid #eef2f6;display:flex;align-items:center;gap:8px}
+    .small{font-size:12px;color:#475569}
+    .muted{color:var(--muted)}
+    
+    /* PaymentQR Modal Styles */
+    .payment-qr-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(15, 23, 42, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      padding: 1rem;
+      animation: overlayFadeIn 0.2s ease-out;
+    }
+
+    @keyframes overlayFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .payment-qr-overlay.active {
+      display: flex;
+    }
+
+    .payment-qr-modal {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      position: relative;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      animation: modalSlideIn 0.3s ease-out;
+    }
+
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .payment-qr-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #6b7280;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      line-height: 1;
+    }
+
+    .payment-qr-close:hover {
+      background-color: #f3f4f6;
+      color: #1f2937;
+    }
+
+    .payment-qr-content {
+      text-align: center;
+    }
+
+    .payment-qr-content h3 {
+      margin: 0 0 16px 0;
+      color: #111827;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .payment-qr-amount {
+      font-size: 1.25rem;
+      color: #1f2937;
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+
+    .payment-qr-code {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      display: inline-block;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .payment-qr-details {
+      text-align: left;
+      padding: 16px;
+      background: #f9fafb;
+      border-radius: 8px;
+    }
+
+    .payment-qr-upi-container {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .payment-qr-upi {
+      font-family: monospace;
+      background: #f3f4f6;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    .payment-qr-copy {
+      background: #eff6ff;
+      border: none;
+      color: #2563eb;
+      cursor: pointer;
+      padding: 6px 12px;
+      font-size: 0.875rem;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .payment-qr-copy:hover {
+      background-color: #dbeafe;
+    }
+
+    .payment-qr-copy.copied {
+      background-color: #dcfce7;
+      color: #15803d;
+    }
+
+    .payment-qr-info {
+      margin-bottom: 16px;
+    }
+
+    .payment-qr-info p {
+      margin: 8px 0;
+      color: #374151;
+    }
+
+    .payment-qr-note {
+      font-size: 0.875rem;
+      color: #4b5563;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 12px;
+    }
+
+    .payment-qr-note p {
+      margin: 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    /* Reminder timestamp is hidden in the table per preference (button remains visible for admins) */
+    .reminder-timestamp{display:none;margin-top:6px;font-size:12px;color:var(--muted)}
+    .search{flex:1;min-width:200px}
+    .table-wrap{max-height:60vh;overflow:auto;border-radius:10px;border:1px solid var(--border);background:#fff}
+    .action-link{cursor:pointer;color:var(--primary);text-decoration:none}
+    .eye{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--primary-weak);color:var(--primary)}
+    .eye:hover{filter:brightness(0.97)}
+    .eye.active{background:var(--primary);color:#fff}
+    .divider{height:1px;background:#eef2f6;margin:8px 0}
+    @media (max-width: 1024px){
+      .chart-grid{grid-template-columns: 1fr 1fr !important; gap: 10px !important}
+      .chart-grid .card:nth-child(3){grid-column: 1 / -1; margin-top: 10px}
+    }
+    /* Tablet breakpoint */
+    @media (max-width: 1024px) {
+      body { padding: 14px; }
+      .controls { gap: 8px; flex-wrap: wrap; }
+      .controls > * { min-width: 180px; flex: 1; }
+      .stats { gap: 10px; }
+      .stat { min-width: 200px; flex: 1; }
+    }
+
+    /* Mobile breakpoint */
+    @media (max-width: 720px) {
+      body { padding: 10px; }
+      h1 { font-size: 16px; line-height: 1.3; }
+      
+      /* Controls */
+      .controls { gap: 6px; }
+      .controls > * { min-width: unset; width: 100%; }
+      /* Only make controls' buttons/inputs full-width on mobile; keep header buttons compact */
+      .controls button, .controls input[type=text], .controls select { 
+        width: 100%;
+        padding: 12px;
+        font-size: 14px;
+      }
+
+      /* Header (top) adjustments: keep admin buttons compact and sticky header */
+      .card:first-of-type{ position: sticky; top: 0; z-index: 40; background: var(--card); }
+      #headerAdminControls{ margin-left:12px; display:flex; gap:8px; }
+      #headerAdminControls button{ width: auto; padding:8px 12px; font-size:14px; }
+      
+      /* Tables */
+      .table-wrap { 
+        max-height: none;
+        margin: 0 -10px;
+        width: calc(100% + 20px);
+        border-radius: 0;
+      }
+      .table-container {
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+      }
+      th, td { 
+        padding: 10px 8px;
+        font-size: 13px;
+        white-space: normal;
+      }
+      td { min-width: 80px; }
+      
+      /* Stats */
+      .stats { gap: 8px; }
+      .stat { 
+        width: 100%;
+        justify-content: space-between;
+        padding: 12px;
+      }
+      
+      /* Charts */
+      .chart-grid { 
+        grid-template-columns: 1fr !important; 
+        gap: 8px !important;
+      }
+      .chart-grid .card {
+        padding: 12px !important;
+        margin-bottom: 0 !important;
+      }
+      .chart-grid h3 {
+        font-size: 13px !important;
+        margin-bottom: 8px !important;
+      }
+      .chart-grid div[style*="height"] {
+        height: 180px !important;
+      }
+      
+      /* Tabs */
+      .tabs {
+        margin: -16px;
+        padding: 8px;
+        overflow-x: visible;
+        white-space: normal;
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      .tab {
+        flex: 1 1 calc(50% - 2px);
+        min-width: calc(50% - 2px);
+        max-width: calc(50% - 2px);
+        padding: 10px 8px;
+        font-size: 12px;
+        text-align: center;
+      }
+      
+      /* Banner */
+      .banner {
+        font-size: 13px;
+        padding: 12px;
+      }
+      
+      /* Payment QR Modal */
+      .payment-qr-modal {
+        width: 100%;
+        max-width: none;
+        margin: 10px;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .payment-qr-content h3 {
+        font-size: 16px;
+      }
+      .payment-qr-amount {
+        font-size: 15px;
+      }
+      .payment-qr-code {
+        max-width: 100%;
+      }
+      .payment-qr-code img {
+        max-width: 100%;
+        height: auto;
+      }
+      .payment-qr-details {
+        font-size: 13px;
+        padding: 12px;
+      }
+      .payment-qr-upi {
+        font-size: 13px;
+        max-width: 100%;
+        overflow-x: auto;
+      }
+    }
+
+    /* Small mobile breakpoint */
+    @media (max-width: 380px) {
+      body { padding: 8px; }
+      h1 { font-size: 15px; }
+      .banner { font-size: 12px; padding: 10px; }
+      button, input[type=text], select { padding: 10px; font-size: 13px; }
+      th, td { 
+        padding: 8px 6px;
+        font-size: 12px;
+      }
+      .stat { padding: 10px; font-size: 13px; }
+      .payment-qr-modal { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Mobile sidebar toggle (visible only on small screens) -->
+  <button id="mobileSidebarToggle" aria-label="Open menu">☰</button>
+  <!-- Member Session Protection Script -->
+  <script>
+    (function() {
+      'use strict';
+      
+      /**
+       * Member Session Management
+       * Check login state and protect page access
+       */
+      
+      /**
+       * Check if member is logged in
+       * @returns {boolean} True if logged in
+       */
+      function isMemberLoggedIn() {
+        try {
+          return sessionStorage.getItem("isLoggedIn") === "true";
+        } catch (e) {
+          return false;
+        }
+      }
+
+      /**
+       * Get logged-in member info
+       * @returns {Object|null} Member info or null
+       */
+      function getLoggedInMember() {
+        try {
+          if (!isMemberLoggedIn()) return null;
+          const memberData = sessionStorage.getItem("loggedInMember");
+          return memberData ? JSON.parse(memberData) : null;
+        } catch (e) {
+          console.error("Error reading member session:", e);
+          return null;
+        }
+      }
+
+      /**
+       * Clear member session
+       */
+      function clearMemberSession() {
+        try {
+          sessionStorage.removeItem("isLoggedIn");
+          sessionStorage.removeItem("memberFullName");
+          sessionStorage.removeItem("memberFlatNumber");
+          sessionStorage.removeItem("loginTime");
+          sessionStorage.removeItem("loggedInMember");
+        } catch (e) {
+          console.error("Error clearing member session:", e);
+        }
+      }
+
+      /**
+       * Logout member and redirect to login
+       */
+      function logoutMember() {
+        clearMemberSession();
+        // Use replace to prevent back button navigation
+        window.location.replace("Home.html");
+      }
+
+      /**
+       * Handle browser back button - prevent access after logout
+       */
+      function handleBrowserBackButton() {
+        window.addEventListener("popstate", function(event) {
+          if (!isMemberLoggedIn()) {
+            // User is not logged in but trying to access protected page
+            window.location.replace("Home.html");
+          }
+        });
+
+        // Push state to enable back button detection
+        if (isMemberLoggedIn()) {
+          history.pushState({ memberLoggedIn: true }, "", window.location.href);
+        }
+      }
+
+      /**
+       * Check session on page load and protect access
+       */
+      function checkMemberSession() {
+        if (!isMemberLoggedIn()) {
+          // Not logged in - redirect to login page
+          window.location.replace("Home.html");
+          return false;
+        }
+        return true;
+      }
+
+      /**
+       * Display logged-in member info
+       */
+      function displayMemberInfo() {
+        const member = getLoggedInMember();
+        if (!member) {
+          console.warn("No member data found in session");
+          return;
+        }
+
+        // Get member data - check both capitalized and lowercase property names
+        const fullName = member.FullName || member.fullName || sessionStorage.getItem("memberFullName") || "Member";
+        const flatNumber = member.FlatNumber || member.flatNumber || sessionStorage.getItem("memberFlatNumber") || "";
+
+        console.log("Displaying member info:", { fullName, flatNumber, member });
+
+        // Wait for DOM to be ready
+        function tryDisplay() {
+          const headerCard = document.querySelector('.card');
+          const adminControls = document.getElementById("headerAdminControls");
+          
+          if (!headerCard || !adminControls) {
+            // DOM not ready yet, try again (max 10 attempts)
+            if (tryDisplay.attempts === undefined) tryDisplay.attempts = 0;
+            tryDisplay.attempts++;
+            if (tryDisplay.attempts < 10) {
+              setTimeout(tryDisplay, 100);
+            } else {
+              console.error("Could not find header elements after multiple attempts");
+            }
+            return;
+          }
+
+          // Find or create member info display element
+          let memberInfoEl = document.getElementById("memberInfoDisplay");
+          if (!memberInfoEl) {
+            // Create member info display element
+            memberInfoEl = document.createElement("div");
+            memberInfoEl.id = "memberInfoDisplay";
+            memberInfoEl.style.cssText = "display:flex;align-items:center;gap:12px;flex-wrap:wrap;";
+            
+            // Insert before admin controls (in the same parent container)
+            if (adminControls && adminControls.parentNode) {
+              adminControls.parentNode.insertBefore(memberInfoEl, adminControls);
+            } else {
+              // Fallback: append to header card's flex container
+              const headerDiv = headerCard.querySelector('div[style*="display:flex"]');
+              if (headerDiv && headerDiv.lastElementChild) {
+                headerDiv.insertBefore(memberInfoEl, headerDiv.lastElementChild);
+              }
+            }
+          }
+
+          // Update member info display
+          memberInfoEl.innerHTML = `
+            <span style="color:var(--muted);font-size:14px;white-space:nowrap;">
+              Welcome, <strong style="color:var(--text);">${escapeHtml(fullName)}</strong>
+              ${flatNumber ? `<span style="color:var(--muted);"> (Flat ${escapeHtml(flatNumber)})</span>` : ''}
+            </span>
+            <button id="memberLogoutBtn" class="ghost" style="padding:8px 12px;font-size:14px;white-space:nowrap;">🚪 Logout</button>
+          `;
+
+          // Remove old event listeners by cloning and replacing
+          const newLogoutBtn = document.getElementById("memberLogoutBtn");
+          if (newLogoutBtn) {
+            // Remove any existing listeners by cloning
+            const clone = newLogoutBtn.cloneNode(true);
+            newLogoutBtn.parentNode.replaceChild(clone, newLogoutBtn);
+            
+            // Add fresh event listener
+            clone.addEventListener("click", function(e) {
+              e.preventDefault();
+              if (confirm("Are you sure you want to logout?")) {
+                logoutMember();
+              }
+            });
+          }
+        }
+
+        // Start trying to display
+        tryDisplay();
+      }
+
+      /**
+       * Escape HTML to prevent XSS
+       */
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Initialize session protection
+      if (checkMemberSession()) {
+        // User is logged in - setup back button handling
+        handleBrowserBackButton();
+        
+        // Display member info when DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function() {
+            displayMemberInfo();
+          });
+        } else {
+          // DOM already loaded
+          displayMemberInfo();
+        }
+        
+        // Prevent page caching
+        window.addEventListener("pageshow", function(event) {
+          if (event.persisted) {
+            // Page was loaded from cache - recheck session
+            if (!isMemberLoggedIn()) {
+              window.location.replace("Home.html");
+            } else {
+              // Refresh member info display
+              displayMemberInfo();
+            }
+          }
+        });
+      }
+    })();
+  </script>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <h1 style="margin:0">🏢 NLC Aadya Society Maintenance Tracker</h1>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;flex:1;justify-content:flex-end;">
+        <div class="banner">💡 Reminder: Please pay your maintenance before 10th of every month via UPI <strong>7697806560icici@ybl</strong>.</div>
+        <!-- Member Info Display will be inserted here -->
+        <div id="headerAdminControls" style="display:flex;align-items:center;gap:8px">
+          <button id="loginBtn" class="ghost">🔐 Admin Login</button>
+          <button id="logoutBtn" class="ghost" style="display:none">🚪 Logout</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ticker">
+    <div class="ticker__track">
+      <span>"This app is currently under development, so some data may be inconsistent. Don’t worry—we’re on it and will take care of everything.</span>
+      <span>This app is currently under development, so some data may be inconsistent. Don’t worry—we’re on it and will take care of everything.</span>
+      <span>This app is currently under development, so some data may be inconsistent. Don’t worry—we’re on it and will take care of everything".</span>
+    </div>
+  </div>
+  
+  
+
+  <div class="card" id="topSummaryCard" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+      <h1 style="margin:0">📈 Summary</h1>
+      <div class="small muted" id="lastUpdated"></div>
+    </div>
+    <div class="controls" style="margin: 8px 0 12px 0">
+      <div id="monthFilterContainer" class="month-filter">
+        <button id="monthFilterBtn" class="ghost">📅 <span id="monthFilterBtnLabel">All Months</span> ▾</button>
+        <div id="monthFilterPanel" class="dropdown-panel" style="display:none; max-height:240px; overflow:auto; padding:8px; border-radius:6px; background:var(--card); box-shadow:0 6px 18px rgba(0,0,0,0.08)">
+          <!-- checkboxes inserted here by populateMonthFilter -->
+        </div>
+        <input type="hidden" id="monthFilterValue" value="all">
+        <!-- Backwards compatibility: keep a hidden element with id 'monthFilter' so existing tests/code that access .value continue to work -->
+        <input type="hidden" id="monthFilter" value="all">
+      </div>
+      <button id="clearFiltersSummary" class="ghost">🗑️ Clear Filters</button>
+      <div class="small muted" id="filterSummary"></div>
+    </div>
+    <div class="stats" id="topSummary"></div>
+    <div class="stats" id="stats"></div>
+    <div class="small muted" id="filterSummary"></div>
+    
+    <!-- Charts Section -->
+    <div id="topOverview" style="margin-top: 16px;">
+      <div class="chart-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+        <div class="card" style="margin-bottom: 0; padding: 12px;">
+          <h3 style="margin: 0 0 8px 0; font-size: 14px; color: var(--text);">📊 Payment Status</h3>
+          <div style="height: 150px; position: relative;">
+            <canvas id="paymentStatusChart"></canvas>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom: 0; padding: 12px;">
+          <h3 style="margin: 0 0 8px 0; font-size: 14px; color: var(--text);">📈 Monthly Collections</h3>
+          <div style="height: 150px; position: relative;">
+            <canvas id="monthlyChart"></canvas>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom: 0; padding: 12px;">
+          <h3 style="margin: 0 0 8px 0; font-size: 14px; color: var(--text);">💸 Expenses vs Collections</h3>
+          <div style="height: 150px, position: relative;">
+            <canvas id="expensesChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar (left) -->
+  <aside id="sidebar" class="sidebar collapsed" aria-label="Main menu">
+    <button id="sidebarToggle" class="sidebar-toggle" aria-expanded="false" aria-label="Toggle navigation">☰</button>
+    <nav class="sidebar-nav" role="navigation">
+      <button class="menu-item active" data-target="tabDashboard" aria-pressed="true"><span class="menu-icon">📊</span><span class="menu-label">Dashboard</span></button>
+      <button class="menu-item" data-target="tabCollected"><span class="menu-icon">💰</span><span class="menu-label">Collected</span></button>
+      <button class="menu-item" data-target="tabExpenses"><span class="menu-icon">💸</span><span class="menu-label">Expenses</span></button>
+    </nav>
+  </aside>
+
+  <!-- Keep original tabs hidden for JS compatibility (IDs referenced by scripts) -->
+  <div class="card" style="display:none">
+    <div class="tabs">
+      <button id="tabDashboard" class="tab active">📊 Dashboard</button>
+      <button id="tabCollected" class="tab">💰 Collected</button>
+      <button id="tabExpenses" class="tab">💸 Expenses</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="controls">
+      <button id="addCollectionBtn" class="ghost" style="display:none">💰 Add Collection</button>
+      <button id="addExpenseBtn" class="ghost" style="display:none">💸 Add Expense</button>
+      <input id="searchBox" class="search" type="text" placeholder="🔍 Search name/flat/contact..." />
+      <button id="exportExcel">📊 Export Excel</button>
+      <button id="exportCsv" class="ghost">📄 Export CSV</button>
+      <button id="refreshData" class="ghost">🔄 Refresh Data</button>
+    </div>
+  </div>
+
+
+  <div class="card table-wrap">
+    <div id="collectedContent" class="tab-content">
+      <div id="tableContainer"></div>
+    </div>
+    <div id="expensesContent" class="tab-content">
+      <div id="expensesTableContainer"></div>
+    </div>
+    <div id="dashboardContent" class="tab-content active">
+      <div class="card">
+        <div id="dashboardMonthFilterContainer" class="month-filter" style="margin-bottom: 10px;">
+          <button id="dashboardMonthFilterBtn" class="ghost">📅 <span id="dashboardMonthFilterBtnLabel">All Months</span> ▾</button>
+          <div id="dashboardMonthFilterPanel" class="dropdown-panel" style="display:none; max-height:240px; overflow:auto; padding:8px; border-radius:6px; background:var(--card); box-shadow:0 6px 18px rgba(0,0,0,0.08)">
+            <!-- checkboxes inserted here by populateMonthFilter -->
+          </div>
+          <input type="hidden" id="dashboardMonthFilterValue" value="all">
+          <input type="hidden" id="dashboardMonthFilter" value="all">
+        </div>
+        <h3 style="margin:0 0 8px 0; font-size:14px;">📊 Dashboard Summary</h3>
+        <div class="dashboard-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:12px; margin-top:12px;">
+          <div class="card small" style="padding:10px; text-align:center">
+            <div class="muted">Total Collected</div>
+            <div id="db_totalCollected" style="font-weight:700; font-size:18px; margin-top:6px">₹0</div>
+          </div>
+          <div class="card small" style="padding:10px; text-align:center">
+            <div class="muted">Total Expenses</div>
+            <div id="db_totalExpenses" style="font-weight:700; font-size:18px; margin-top:6px">₹0</div>
+          </div>
+          <div class="card small" style="padding:10px; text-align:center">
+            <div class="muted">Net Balance</div>
+            <div id="db_netBalance" style="font-weight:700; font-size:18px; margin-top:6px">₹0</div>
+          </div>
+          <div class="card small" style="padding:10px; text-align:center">
+            <div class="muted">Unpaid Count</div>
+            <div id="db_unpaidCount" style="font-weight:700; font-size:18px; margin-top:6px">0</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+          <div class="card" style="height:220px; padding:10px">
+            <h4 style="margin:0 0 8px 0; font-size:13px">Payment Status</h4>
+            <div style="height:150px; position:relative"><canvas id="db_paymentStatusChart"></canvas></div>
+          </div>
+          <div class="card" style="height:220px; padding:10px">
+            <h4 style="margin:0 0 8px 0; font-size:13px">Monthly Collections</h4>
+            <canvas id="db_monthlyChart"></canvas>
+          </div>
+          <div class="card" style="height:220px; padding:10px">
+            <h4 style="margin:0 0 8px 0; font-size:13px">Expenses vs Collections</h4>
+            <canvas id="db_expensesChart"></canvas>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <h4 style="margin:0 0 8px 0; font-size:13px">Top Contributors</h4>
+          <div id="db_topPayers" class="small muted"></div>
+        </div>
+      </div>
+    </div>
+    <div id="dashboardContent" class="tab-content">
+      <div class="card">
+        <h3 style="margin:0 0 8px 0; font-size:14px;">📊 Dashboard Summary</h3>
+        <div class="dashboard-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:12px; margin-top:12px;">
+          <div class="card small" style="padding:10px; text-align:center">
+            <div class="muted">Total Collected</div>
+            <div id="db_totalCollected" style="font-weight:700; font-size:18px; margin-top:6px">₹0</div>
+          </div>
+          <div class="card small" style="padding:10px; text-align:center">
+            <div class="muted">Total Expenses</div>
+            <div id="db_totalExpenses" style="font-weight:700; font-size:18px; margin-top:6px">₹0</div>
+          </div>
+          <div class="card small" style="padding:10px; text-align:center">
+            <div class="muted">Net Balance</div>
+            <div id="db_netBalance" style="font-weight:700; font-size:18px; margin-top:6px">₹0</div>
+          </div>
+          <div class="card small" style="padding:10px; text-align:center">
+            <div class="muted">Unpaid Count</div>
+            <div id="db_unpaidCount" style="font-weight:700; font-size:18px; margin-top:6px">0</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px;">
+          <div class="card" style="height:220px; padding:10px">
+            <h4 style="margin:0 0 8px 0; font-size:13px">Payment Status</h4>
+            <div style="height:150px; position:relative"><canvas id="db_paymentStatusChart"></canvas></div>
+          </div>
+          <div class="card" style="height:220px; padding:10px">
+            <h4 style="margin:0 0 8px 0; font-size:13px">Monthly Collections</h4>
+            <canvas id="db_monthlyChart"></canvas>
+          </div>
+          <div class="card" style="height:220px; padding:10px">
+            <h4 style="margin:0 0 8px 0; font-size:13px">Expenses vs Collections</h4>
+            <canvas id="db_expensesChart"></canvas>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <h4 style="margin:0 0 8px 0; font-size:13px">Top Contributors</h4>
+          <div id="db_topPayers" class="small muted"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="small muted" id="visitCounter" style="text-align:center;margin-top:8px">👁️ Site visits: <span id="visitCount">—</span></div>
+
+  <!-- PaymentQR Modal -->
+  <div class="payment-qr-overlay" id="paymentQrModal">
+    <div class="payment-qr-modal">
+      <button class="payment-qr-close" id="paymentQrClose">&times;</button>
+      <div class="payment-qr-content">
+        <h3>Pay Society Maintenance</h3>
+        <div class="payment-qr-amount">
+          <span>Amount: <span id="paymentAmount"></span></span>
+        </div>
+        <div class="payment-qr-code" id="qrCode"></div>
+        <div class="payment-qr-details">
+          <div class="payment-qr-upi-container">
+            <strong>UPI ID:</strong>
+            <span class="payment-qr-upi" id="upiId">7697806560icici@ybl</span>
+            <button class="payment-qr-copy" id="copyUpiBtn">📋 Copy</button>
+          </div>
+          <div class="payment-qr-info" id="paymentInfo"></div>
+          <div class="payment-qr-note">
+            <p>💡 Scan with any UPI app (GPay, PhonePe, Paytm, etc.)</p>
+            <p>📝 Description will be auto-filled with your flat details</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin Login Modal -->
+  <div class="payment-qr-overlay" id="loginModal" style="display:none;">
+    <div class="payment-qr-modal" style="max-width:420px;">
+      <button class="payment-qr-close" id="loginClose">&times;</button>
+      <div style="padding:4px 0 0 0">
+        <h3 style="margin:0 0 8px 0">🔐 Admin Login</h3>
+        <div style="margin-bottom:8px;">
+          <label class="small">User ID</label>
+          <input id="loginUser" type="text" placeholder="admin" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb" />
+        </div>
+        <div style="margin-bottom:8px;">
+          <label class="small">Password</label>
+          <input id="loginPwd" type="password" placeholder="password" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb" />
+        </div>
+        <!-- <div class="small muted">Note: Credentials are validated against an external REST endpoint; if you have a backend the app will also try to use <code>/api/session</code> for server-side sessions.</div> -->
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <button id="loginSubmit" class="ghost">Login</button>
+          <button id="loginCancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Expense Modal -->
+  <div class="payment-qr-overlay" id="addExpenseModal" style="display:none;">
+    <div class="payment-qr-modal" style="max-width:520px;">
+      <button class="payment-qr-close" id="addExpenseClose">&times;</button>
+      <div style="padding:4px 0 0 0">
+        <h3 style="margin:0 0 8px 0">➕ Add New Expense (Admin)</h3>
+        <!-- Admin credentials are handled via the centralized Login modal (server-side session) -->
+        <hr />
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <div>
+            <label class="small">Payment Date</label>
+            <input id="expenseDate" type="date" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb" />
+          </div>
+          <div>
+            <label class="small">Month</label>
+            <select id="expenseMonth" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb"></select>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <label class="small">Expense Category</label>
+          <select id="expenseCategory" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb"></select>
+          <input id="expenseCategoryOther" type="text" placeholder="Enter new category" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb;display:none;" />
+        </div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <label class="small">Vendor / Payee</label>
+            <input id="expenseVendor" type="text" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb" />
+          </div>
+          <div>
+            <label class="small">Payment Mode</label>
+            <input id="expenseMode" type="text" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb" />
+          </div>
+        </div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <label class="small">Amount Spent</label>
+            <input id="expenseAmount" type="number" step="0.01" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb" />
+          </div>
+          <div>
+            <label class="small">Receipt (optional)</label>
+            <input id="expenseReceipt" type="file" accept="image/*,application/pdf" style="width:100%;padding:6px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb" />
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <label class="small">Notes</label>
+          <textarea id="expenseNotes" rows="3" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <button id="addExpenseSubmit" class="ghost">Save</button>
+          <button id="addExpenseCancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Collection Modal -->
+  <div class="payment-qr-overlay" id="addCollectionModal" style="display:none;">
+    <div class="payment-qr-modal" style="max-width:520px;">
+      <button class="payment-qr-close" id="addCollectionClose">&times;</button>
+      <div style="padding:4px 0 0 0">
+        <h3 style="margin:0 0 8px 0">💰 Add New Collection (Admin)</h3>
+        <!-- Admin login handled centrally via Login modal and server-side session -->
+        <hr />
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <div>
+            <label class="small">Month</label>
+            <select id="collectionMonth" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb"></select>
+          </div>
+          <div>
+            <label class="small">Flat Number</label>
+            <select id="collectionFlat" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb"></select>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <label class="small">Resident Name</label>
+          <input id="collectionResident" type="text" readonly style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb;background:#f3f4f6;" />
+        </div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <label class="small">Payment Date</label>
+            <input id="collectionDate" type="date" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb" />
+          </div>
+          <div>
+            <label class="small">Amount Received / Due</label>
+            <input id="collectionAmount" type="number" step="0.01" value="2000" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb" />
+          </div>
+        </div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div>
+            <label class="small">Status</label>
+            <select id="collectionStatus" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb">
+              <option value="paid">Paid</option>
+              <option value="unpaid">Unpaid</option>
+            </select>
+          </div>
+          <div>
+            <label class="small">(If unpaid, amount will be recorded as future due)</label>
+            <div style="height:1px"></div>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <label class="small">Payment Mode</label>
+          <input id="collectionMode" type="text" placeholder="e.g., UPI, Cash" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb" />
+        </div>
+        <div style="margin-top:8px;">
+          <label class="small">Reference/Transaction ID</label>
+          <input id="collectionRef" type="text" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb" />
+        </div>
+        <div style="margin-top:8px;">
+          <label class="small">Notes</label>
+          <textarea id="collectionNotes" rows="2" style="width:100%;padding:8px;margin-top:4px;border-radius:6px;border:1px solid #e5e7eb"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+          <button id="addCollectionSubmit" class="ghost">Save Collection</button>
+          <button id="addCollectionCancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+  <script>
+    const exportExcelBtn = document.getElementById('exportExcel');
+    const exportCsvBtn = document.getElementById('exportCsv');
+    const refreshDataBtn = document.getElementById('refreshData');
+    const clearFiltersSummaryBtn = document.getElementById('clearFiltersSummary');
+    const searchBox = document.getElementById('searchBox');
+    const statsDiv = document.getElementById('stats');
+    const tableContainer = document.getElementById('tableContainer');
+    const monthFilterContainer = document.getElementById('monthFilterContainer');
+    const monthFilter = document.getElementById('monthFilter');
+    const tabDashboardBtn = document.getElementById('tabDashboard');
+    const tabCollectedBtn = document.getElementById('tabCollected');
+    const tabExpensesBtn = document.getElementById('tabExpenses');
+    const filterSummary = document.getElementById('filterSummary');
+    const topSummaryCard = document.getElementById('topSummaryCard');
+    const topSummaryDiv = document.getElementById('topSummary');
+    const addCollectionBtn = document.getElementById('addCollectionBtn');
+    const addExpenseBtn = document.getElementById('addExpenseBtn');
+
+    let rawData = [];
+    let columnFilters = {};
+    let expensesData = [];
+  let monthlyExpenseTotals = {};
+    let expensesColumnFilters = {};
+    let currentTab = 'dashboard'; // collected | expenses | dashboard
+    let paidView = 'all'; // all | paid | unpaid
+  // Admin/session state (no hardcoded creds)
+  let isAdmin = false;
+
+    // Sidebar wiring: toggle, persistence and menu clicks
+    const sidebar = document.getElementById("sidebar");
+    const sidebarToggle = document.getElementById("sidebarToggle");
+    const sidebarMenuItems = document.querySelectorAll('#sidebar .menu-item');
+
+    function setSidebarExpanded(expanded){
+      if(expanded){
+        sidebar.classList.remove('collapsed');
+        sidebar.classList.add('expanded');
+        sidebar.setAttribute('aria-hidden','false');
+        document.body.classList.add('sidebar-expanded');
+        sidebarToggle.setAttribute('aria-expanded','true');
+        if(window.mobileSidebarToggle){
+          window.mobileSidebarToggle.setAttribute('aria-expanded','true');
+          // hide floating toggle explicitly on mobile when expanded
+          if(window.innerWidth < 900) window.mobileSidebarToggle.style.display = 'none';
+        }
+        localStorage.setItem('sidebarExpanded','true');
+      }else{
+        sidebar.classList.remove('expanded');
+        sidebar.classList.add('collapsed');
+        sidebar.setAttribute('aria-hidden','true');
+        document.body.classList.remove('sidebar-expanded');
+        sidebarToggle.setAttribute('aria-expanded','false');
+        if(window.mobileSidebarToggle){
+          window.mobileSidebarToggle.setAttribute('aria-expanded','false');
+          if(window.innerWidth < 900) window.mobileSidebarToggle.style.display = 'block';
+        }
+        localStorage.setItem('sidebarExpanded','false');
+      }
+    }
+
+    // Initialize from localStorage
+    try{
+      const saved = localStorage.getItem('sidebarExpanded');
+      // On mobile force collapsed by default regardless of saved setting; on desktop respect saved preference
+      const defaultExpanded = (window.innerWidth >= 900) ? (saved === 'true') : false;
+      setSidebarExpanded(defaultExpanded);
+    }catch(e){ /* ignore */ }
+
+    sidebarToggle.addEventListener('click', ()=>{
+      const expanded = sidebar.classList.contains('expanded');
+      setSidebarExpanded(!expanded);
+    });
+
+    sidebarMenuItems.forEach(mi=>{
+      mi.addEventListener('click', ()=>{
+        const target = mi.dataset.target;
+        if(!target) return;
+        const btn = document.getElementById(target);
+        if(btn) btn.click();
+        sidebarMenuItems.forEach(m=> m.classList.remove('active'));
+        mi.classList.add('active');
+        sidebarMenuItems.forEach(m=> m.setAttribute('aria-pressed','false'));
+        mi.setAttribute('aria-pressed','true');
+        // On mobile, close the panel after selection
+        if(window.innerWidth < 900){ setSidebarExpanded(false); }
+      });
+    });
+
+    // Mobile toggle button wiring
+    const mobileSidebarToggle = document.getElementById('mobileSidebarToggle');
+    // expose for setSidebarExpanded to update aria
+    window.mobileSidebarToggle = mobileSidebarToggle;
+    if(mobileSidebarToggle){
+      mobileSidebarToggle.addEventListener('click', ()=>{
+        const expanded = sidebar.classList.contains('expanded');
+        setSidebarExpanded(!expanded);
+        mobileSidebarToggle.setAttribute('aria-expanded', String(!expanded));
+      });
+      // initialize aria
+      mobileSidebarToggle.setAttribute('aria-expanded', sidebar.classList.contains('expanded') ? 'true' : 'false');
+    }
+
+    // Sync menu active state when tabs are clicked programmatically
+    [tabDashboardBtn, tabCollectedBtn, tabExpensesBtn].forEach(tb=>{
+      if(!tb) return;
+      tb.addEventListener('click', ()=>{
+        const id = tb.id;
+        sidebarMenuItems.forEach(m=>{
+          m.classList.toggle('active', m.dataset.target === id);
+          m.setAttribute('aria-pressed', m.dataset.target === id ? 'true' : 'false');
+        });
+      });
+    });
+
+    // Dashboard tab click handler (activate dashboard view)
+    if(tabDashboardBtn){
+      tabDashboardBtn.addEventListener('click', ()=>{
+        currentTab = 'dashboard';
+        updateTabControls();
+        document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+        tabDashboardBtn.classList.add('active');
+        const dc = document.getElementById('dashboardContent'); if(dc) dc.classList.add('active');
+        console.debug('Dashboard tab clicked - rendering dashboard');
+        render();
+        // Ensure charts lay out properly after the dashboard becomes visible
+        requestAnimationFrame(()=>{
+          try{
+            if(charts.dbPaymentStatus){ charts.dbPaymentStatus.resize(); charts.dbPaymentStatus.update(); }
+            if(charts.dbMonthly){ charts.dbMonthly.resize(); charts.dbMonthly.update(); }
+            if(charts.dbExpenses){ charts.dbExpenses.resize(); charts.dbExpenses.update(); }
+          }catch(e){ console.warn('Dashboard chart resize failed', e); }
+        });
+        // Also schedule a short delayed update to cover browser layout timing
+        setTimeout(()=>{
+          try{
+            if(charts.dbPaymentStatus) charts.dbPaymentStatus.update();
+            if(charts.dbMonthly) charts.dbMonthly.update();
+            if(charts.dbExpenses) charts.dbExpenses.update();
+          }catch(e){ }
+        },120);
+      });
+    }
+
+  // Session & Login helpers (client side): prefer client-side session (from external validator) then fallback to server session
+  const EXTERNAL_AUTH_URL = 'https://nlcaadyafa-bye9djg9had6dkcx.southindia-01.azurewebsites.net/api/Function1?code=O9l3Gupl7fQMjtAihp-g0vOLbpImrKeh1UOGLRhxBYmLAzFuLGlEhg==';
+  const SEND_WHATSAPP_URL = 'https://nlcaadyafa-bye9djg9had6dkcx.southindia-01.azurewebsites.net/api/SendWhatsAppMessage?code=O9l3Gupl7fQMjtAihp-g0vOLbpImrKeh1UOGLRhxBYmLAzFuLGlEhg==';
+
+  async function fetchSession(){
+    // 1) Check client-side session first
+    try{
+      const s = localStorage.getItem('adminSession');
+      if(s){
+        const obj = JSON.parse(s);
+        if(obj && obj.expiresAt && Number(obj.expiresAt) > Date.now()){
+          isAdmin = true; updateAdminUI(); return;
+        }
+        // expired
+        localStorage.removeItem('adminSession');
+      }
+    }catch(e){ console.warn('local session parse failed', e); }
+
+    // 2) Fallback: try server-side session endpoint if available
+    try{
+      const r = await fetch('/api/session', { credentials: 'include' });
+      if(r.ok){ const d = await r.json(); isAdmin = d && d.role === 'admin'; }
+      else isAdmin = false;
+    }catch(e){ console.warn('Session check failed', e); isAdmin = false; }
+
+    updateAdminUI();
+  }
+
+  function updateAdminUI(){
+    try{
+      const show = !!isAdmin;
+      if(addCollectionBtn) addCollectionBtn.style.display = show ? 'inline-block' : 'none';
+      if(addExpenseBtn) addExpenseBtn.style.display = show ? 'inline-block' : 'none';
+      const loginBtn = document.getElementById('loginBtn');
+      const logoutBtn = document.getElementById('logoutBtn');
+      if(loginBtn) loginBtn.style.display = show ? 'none' : 'inline-block';
+      if(logoutBtn) logoutBtn.style.display = show ? 'inline-block' : 'none';
+      // Update tab-specific controls and re-render tables so action buttons (Edit/Delete) respect current role
+      if(typeof updateTabControls === 'function') updateTabControls();
+      if(typeof render === 'function') render();
+    }catch(e){ console.warn(e); }
+  }
+
+  function showLoginModal(){ const m = document.getElementById('loginModal'); if(m) m.style.display = 'flex'; }
+  function hideLoginModal(){ const m = document.getElementById('loginModal'); if(m) m.style.display = 'none'; }
+
+  async function loginAdmin(username, password){
+    // Minimal client-side validation
+    if(!username || !password){ alert('Please enter both user id and password'); return false; }
+
+    const loginBtnEl = document.getElementById('loginSubmit');
+    // Log origin to help debug CORS issues
+    console.log('Auth attempt', { origin: location.origin, username });
+    try{
+      if(loginBtnEl) loginBtnEl.disabled = true;
+      // Validate credentials against external REST endpoint (Azure Function). Expect 200 for success.
+      // The validator expects { userId, password }
+      const res = await fetch(EXTERNAL_AUTH_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: username, password:password })
+      });
+
+      // Read response as text first (safer for non-JSON responses)
+      const text = await res.text().catch(()=>null);
+      let parsed = text;
+      try{ parsed = JSON.parse(text); }catch(_){}
+      console.log('Auth response', { status: res.status, body: parsed });
+
+      if(res.ok){
+        // store minimal client-side session (no password)
+        const expiresAt = Date.now() + 8*60*60*1000; // 8 hours
+        localStorage.setItem('adminSession', JSON.stringify({ username, expiresAt }));
+        isAdmin = true;
+        updateAdminUI();
+        hideLoginModal();
+        alert('Admin login successful');
+        return true;
+      }
+
+      // Non-200 response — show status + body for easier debugging
+      const errMsg = (text && text.length>0) ? `${res.status} — ${text}` : `HTTP ${res.status}`;
+      console.warn('Login failed', errMsg);
+      alert('Login failed: ' + errMsg);
+      return false;
+    }catch(e){
+      console.error('Login error', e);
+      // Most common: network error or CORS failure (appears as TypeError "Failed to fetch")
+      if(e instanceof TypeError){
+        alert('Network or CORS error when calling auth endpoint. Check DevTools Console/Network. If serving the file via file://, serve it over http and ensure the Azure Function allows your origin.');
+      }else{
+        alert('Login failed: ' + (e && e.message ? e.message : 'unknown error'));
+      }
+      return false;
+    }finally{ if(loginBtnEl) loginBtnEl.disabled = false; }
+  }
+
+  async function logoutAdmin(){
+    try{ await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }); }catch(e){}
+    localStorage.removeItem('adminSession');
+    isAdmin = false; updateAdminUI(); alert('Logged out');
+  }
+
+  async function ensureAdmin(){
+    if(isAdmin) return true;
+    await fetchSession();
+    if(isAdmin) return true;
+    showLoginModal();
+    return false;
+  }
+
+  //Prod Config 
+    let UPDATE_ENDPOINT = null//"https://societymantaintracker.blob.core.windows.net/files/maintenance_data.json"; // optional, can be set via config.json
+    let UPDATE_BLOB_SAS_URL = "https://societymantaintracker.blob.core.windows.net/files/maintenance_data.json?sp=racw&st=2025-12-15T03:04:11Z&se=2026-01-15T11:19:11Z&spr=https&sv=2024-11-04&sr=c&sig=otqgX3itEy3y5ZNV7H2fdB20wy%2FzmoDQwAqa%2Fz3y64Y%3D"; // optional SAS URL with write perms to maintenance_data.json
+    let UPDATE_RECEIPT_CONTAINER_SAS_URL = "https://societymantaintracker.blob.core.windows.net/expenses?sp=racw&st=2025-12-15T02:54:49Z&se=2026-01-15T11:09:49Z&spr=https&sv=2024-11-04&sr=c&sig=COqIBVAiwnhj5uf30RTiduSjUFc6BZkBg8jyrPXQ5aI%3D"// optional SAS URL for receipt uploads (container-level SAS)
+   
+    const READ_JSON_URL = "https://societymantaintracker.blob.core.windows.net/files/maintenance_data.json";
+
+    //Dev Config 
+    // let UPDATE_ENDPOINT = null//"https://societymantaintracker.blob.core.windows.net/files/maintenance_data.json"; // optional, can be set via config.json
+    // let UPDATE_BLOB_SAS_URL = "https://societymantaintracker.blob.core.windows.net/files/Dev/maintenance_data.json?sp=racw&st=2025-11-17T11:08:40Z&se=2026-03-31T19:23:40Z&spr=https&sv=2024-11-04&sr=b&sig=GGwVtc4TASgJRObtH2Mvtj0KgoxAFeniUAtyeomFdCI%3D"; // optional SAS URL with write perms to maintenance_data.json
+    // let UPDATE_RECEIPT_CONTAINER_SAS_URL = "https://societymantaintracker.blob.core.windows.net/expenses?sp=racw&st=2025-12-15T02:54:49Z&se=2026-01-15T11:09:49Z&spr=https&sv=2024-11-04&sr=c&sig=COqIBVAiwnhj5uf30RTiduSjUFc6BZkBg8jyrPXQ5aI%3D"// optional SAS URL for receipt uploads (container-level SAS)
+    // const READ_JSON_URL = "https://societymantaintracker.blob.core.windows.net/files/Dev/maintenance_data.json";
+    
+    let summaryData = [];
+    let charts = {
+      paymentStatus: null,
+      monthly: null,
+      expenses: null,
+      dbMonthly: null,
+      dbExpenses: null,
+      dbPaymentStatus: null
+    };
+
+    // Simple site visit counter using CountAPI (no backend required)
+    const COUNT_API_NAMESPACE = 'nlc-aadya-society';
+    const COUNT_API_KEY = 'public-page-v1';
+    async function updateVisitCount(){
+      const el = document.getElementById('visitCount');
+      if(!el) return;
+      try{
+        const res = await fetch(`https://api.countapi.xyz/hit/${COUNT_API_NAMESPACE}/${COUNT_API_KEY}`);
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const data = await res.json();
+        const value = (data && (data.value ?? data.count)) || 0;
+        el.textContent = Number(value).toLocaleString();
+      }catch(_){
+        // Fallback to per-browser local counter
+        const local = Number(localStorage.getItem('visitCountLocal')||0) + 1;
+        localStorage.setItem('visitCountLocal', String(local));
+        el.textContent = Number(local).toLocaleString();
+      }
+    }
+
+    // UPI Payment Utilities
+    function generateUPIUrl({ payeeName = 'NLC Aadya Society', payeeVpa, amount, transactionNote, transactionRef }) {
+      const params = new URLSearchParams();
+      params.append('pa', payeeVpa);
+      if (payeeName) params.append('pn', payeeName);
+      if (amount) params.append('am', amount.toString());
+      if (transactionNote) params.append('tn', transactionNote);
+      if (transactionRef) params.append('tr', transactionRef);
+      return `upi://pay?${params.toString()}`;
+    }
+
+    function generateMaintenanceNote(flatNumber, residentName) {
+      const cleanName = (residentName || '').replace(/[^a-zA-Z0-9\s]/g, '').trim();
+      return `Maintenance_Flat${flatNumber}_${cleanName.replace(/\s+/g, '_')}`;
+    }
+
+    function formatINR(amount) {
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(amount);
+    }
+
+    function normalizeKey(k){return (k||'').toString().trim().toLowerCase();}
+    
+    function getColumnIcon(columnName){
+      const iconMap = {
+        'Month': '📅',
+        'Name': '👤',
+        'Flat': '🏠',
+        'Amount': '💰',
+        'Paid': '✅',
+        'PaymentDate': '📆',
+        'Payment Mode': '💳',
+        'Reference/Transaction ID': '🔗',
+        'Notes': '📝',
+        'Date': '📆',
+        'Description': '📄',
+        'Category': '📂',
+        'Amount Spent': '💸',
+        'Action': '⚙️',
+        'Actions': '⚙️',
+        'Expense Category': '📂',
+        'Vendor/Payee': '👥',
+        'Payment Date': '📆'
+      };
+      return iconMap[columnName] || '';
+    }
+
+    function renderCharts() {
+      renderPaymentStatusChart();
+      renderMonthlyChart();
+      renderExpensesChart();
+    }
+
+    function renderPaymentStatusChart() {
+      const ctx = document.getElementById('paymentStatusChart');
+      if (!ctx) return;
+
+      // Destroy existing chart
+      if (charts.paymentStatus) {
+        charts.paymentStatus.destroy();
+      }
+
+      const data = getCollectedBaseFiltered();
+      const paid = data.filter(r => r.__paid).length;
+      const unpaid = data.filter(r => !r.__paid).length;
+
+      charts.paymentStatus = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Paid', 'Unpaid'],
+          datasets: [{
+            data: [paid, unpaid],
+            backgroundColor: ['#22c55e', '#ef4444'],
+            borderWidth: 2,
+            borderColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                padding: 8,
+                usePointStyle: true,
+                font: {
+                  size: 11
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderMonthlyChart() {
+      const ctx = document.getElementById('monthlyChart');
+      if (!ctx) return;
+
+      // Destroy existing chart
+      if (charts.monthly) {
+        charts.monthly.destroy();
+      }
+
+      const monthData = {};
+      rawData.forEach(row => {
+        if (row.Month && row.Amount) {
+          if (!monthData[row.Month]) {
+            monthData[row.Month] = 0;
+          }
+          monthData[row.Month] += parseFloat(row.Amount) || 0;
+        }
+      });
+
+      const months = Object.keys(monthData).sort();
+      const amounts = months.map(month => monthData[month]);
+
+      charts.monthly = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: months,
+          datasets: [{
+            label: 'Collections (₹)',
+            data: amounts,
+            backgroundColor: '#3b82f6',
+            borderColor: '#1d4ed8',
+            borderWidth: 1,
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                font: {
+                  size: 10
+                },
+                callback: function(value) {
+                  return '₹' + value.toLocaleString();
+                }
+              }
+            },
+            x: {
+              ticks: {
+                font: {
+                  size: 10
+                }
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            }
+          }
+        }
+      });
+    }
+
+    function renderExpensesChart() {
+      const ctx = document.getElementById('expensesChart');
+      if (!ctx) return;
+
+      // Destroy existing chart
+      if (charts.expenses) {
+        charts.expenses.destroy();
+      }
+
+      // Create data structures to hold time-series data
+      const timeSeriesData = new Map();
+
+      // Process collections with dates
+      rawData.forEach(row => {
+        if (row.PaymentDate && row.Amount) {
+          const date = new Date(row.PaymentDate);
+          if (!isNaN(date)) {
+            const dateKey = date.toISOString().split('T')[0];
+            if (!timeSeriesData.has(dateKey)) {
+              timeSeriesData.set(dateKey, { date, collections: 0, expenses: 0 });
+            }
+            timeSeriesData.get(dateKey).collections += parseFloat(row.Amount) || 0;
+          }
+        }
+      });
+
+      // Process expenses with dates
+      expensesData.forEach(row => {
+        if (row.Date) {
+          let date = null;
+          // Handle Excel serial dates
+          if (typeof row.Date === 'number' && !isNaN(row.Date)) {
+            try { 
+              date = excelSerialToJSDate(row.Date);
+            } catch(e) {}
+          }
+          // Handle string dates
+          if (!date) {
+            try {
+              date = new Date(row.Date);
+            } catch(e) {}
+          }
+          
+          // If we have a valid date, process the expense amount
+          if (date && !isNaN(date)) {
+            const dateKey = date.toISOString().split('T')[0];
+            if (!timeSeriesData.has(dateKey)) {
+              timeSeriesData.set(dateKey, { date, collections: 0, expenses: 0 });
+            }
+            
+            // Try to get expense amount from various possible fields
+            let expenseAmount = 0;
+            if (row.Amount !== undefined && row.Amount !== null) {
+              expenseAmount = parseFloat(row.Amount);
+            } else if (row['Amount Spent'] !== undefined && row['Amount Spent'] !== null) {
+              expenseAmount = parseFloat(row['Amount Spent']);
+            }
+            
+            // Only add if we got a valid number
+            if (!isNaN(expenseAmount)) {
+              timeSeriesData.get(dateKey).expenses += expenseAmount;
+            }
+          }
+        }
+      });
+
+      // Convert to arrays and sort by date
+      // Convert Map to array and sort by date
+      const sortedData = Array.from(timeSeriesData.values())
+        .sort((a, b) => a.date - b.date);
+
+      // Debug log to verify data
+      console.log('Chart Data:', sortedData.map(d => ({
+        date: d.date.toLocaleDateString(),
+        collections: d.collections,
+        expenses: d.expenses
+      })));
+
+      const dates = sortedData.map(d => d.date.toLocaleDateString());
+      const collections = sortedData.map(d => d.collections);
+      const expenses = sortedData.map(d => d.expenses);
+
+      charts.expenses = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: dates,
+          datasets: [
+            {
+              label: 'Collections',
+              data: collections,
+              borderColor: '#22c55e',
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              tension: 0.4,
+              fill: true,
+              pointRadius: 3,
+              pointHoverRadius: 6
+            },
+            {
+              label: 'Expenses',
+              data: expenses,
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              tension: 0.4,
+              fill: true,
+              pointRadius: 3,
+              pointHoverRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                font: {
+                  size: 10
+                },
+                callback: function(value) {
+                  return '₹' + value.toLocaleString();
+                }
+              }
+            },
+            x: {
+              type: 'category',
+              ticks: {
+                font: {
+                  size: 10
+                },
+                maxRotation: 45,
+                minRotation: 45
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: {
+                usePointStyle: true,
+                padding: 8,
+                font: {
+                  size: 11
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Dashboard rendering helpers
+    function renderDashboard(){
+      try{
+        const collectedAll = rawData.reduce((s,r)=> s + (parseFloat(r.Amount||0)||0), 0);
+        const expensesAll = expensesData.reduce((s,e)=> s + (parseFloat(e.Amount||e['Amount Spent']||0)||0), 0);
+        const unpaidCount = rawData.filter(r=>!r.__paid).length;
+        const net = collectedAll - expensesAll;
+
+        const elCollected = document.getElementById('db_totalCollected');
+        const elExpenses = document.getElementById('db_totalExpenses');
+        const elNet = document.getElementById('db_netBalance');
+        const elUnpaid = document.getElementById('db_unpaidCount');
+
+        if(elCollected) elCollected.textContent = formatINR(collectedAll);
+        if(elExpenses) elExpenses.textContent = formatINR(expensesAll);
+        if(elNet) elNet.textContent = formatINR(net);
+        if(elUnpaid) elUnpaid.textContent = String(unpaidCount);
+        console.debug('renderDashboard', { collectedAll, expensesAll, net, unpaidCount });
+
+        // Compute unpaid amount (respect selected months if any)
+        let unpaidAmount = 0;
+        const selectedMonths = getSelectedMonths();
+        if(!selectedMonths){
+          unpaidAmount = rawData.filter(r=>!r.__paid).reduce((s,r)=>{
+            const raw = (r.Due !== undefined && r.Due !== null && r.Due !== '') ? r.Due : (r['Amount Due'] || r.Amount || 0);
+            return s + (parseFloat(String(raw||'0').replace(/[^0-9.-]/g,'')) || 0);
+          },0);
+        }else{
+          const monthsLower = selectedMonths.map(s=>s.toLowerCase());
+          const rows = rawData.filter(r=>!r.__paid && monthsLower.includes((r.Month||'').toLowerCase()));
+          unpaidAmount = rows.reduce((s,r)=>{
+            const raw = (r.Due !== undefined && r.Due !== null && r.Due !== '') ? r.Due : (r['Amount Due'] || r.Amount || 0);
+            return s + (parseFloat(String(raw||'0').replace(/[^0-9.-]/g,'')) || 0);
+          },0);
+        }
+        let elUnpaidAmt = document.getElementById('db_unpaidAmount');
+        if(!elUnpaidAmt){
+          // If the unpaid amount card is missing from the dashboard summary, create it dynamically
+          const grid = document.querySelector('#dashboardContent .dashboard-grid');
+          if(grid){
+            const card = document.createElement('div');
+            card.className = 'card small';
+            card.style.padding = '10px';
+            card.style.textAlign = 'center';
+            card.innerHTML = '<div class="muted">Unpaid Amount</div><div id="db_unpaidAmount" style="font-weight:700; font-size:18px; margin-top:6px">₹0</div>';
+            grid.appendChild(card);
+            elUnpaidAmt = document.getElementById('db_unpaidAmount');
+          }
+        }
+        if(elUnpaidAmt) elUnpaidAmt.textContent = formatINR(unpaidAmount);
+
+        renderDBPaymentStatusChart();
+        renderDBMonthlyChart();
+        renderDBExpensesChart();
+        renderDBTopPayers();
+      }catch(e){ console.warn('renderDashboard failed', e); }
+    }
+
+    function renderDBMonthlyChart(){
+      const ctx = document.getElementById('db_monthlyChart');
+      if(!ctx) return;
+      if(charts.dbMonthly){ charts.dbMonthly.destroy(); }
+
+      const monthData = {};
+      rawData.forEach(row => {
+        if (row.Month && row.Amount) {
+          if (!monthData[row.Month]) monthData[row.Month] = 0;
+          monthData[row.Month] += parseFloat(row.Amount) || 0;
+        }
+      });
+      const months = Object.keys(monthData).sort();
+      const amounts = months.map(m=>monthData[m]);
+
+      charts.dbMonthly = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: months,
+          datasets: [{ label: 'Collections (₹)', data: amounts, backgroundColor: '#60a5fa', borderColor: '#2563eb', borderWidth:1, borderRadius:4 }]
+        },
+        options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, ticks:{ callback: v=>'₹'+Number(v).toLocaleString() } } } }
+      });
+
+      // Ensure layout is correct after showing
+      try{ setTimeout(()=>{ if(charts.dbMonthly){ charts.dbMonthly.resize(); charts.dbMonthly.update(); } },80); requestAnimationFrame(()=>{ if(charts.dbMonthly){ charts.dbMonthly.resize(); charts.dbMonthly.update(); } }); }catch(e){}
+    }
+
+    function renderDBPaymentStatusChart(){
+      const ctx = document.getElementById('db_paymentStatusChart');
+      if(!ctx) return;
+      if(charts.dbPaymentStatus) charts.dbPaymentStatus.destroy();
+
+      const data = getCollectedBaseFiltered();
+      const paid = data.filter(r=>r.__paid).length;
+      const unpaid = data.filter(r=>!r.__paid).length;
+      console.debug('renderDBPaymentStatusChart', { paid, unpaid, dataCount: data.length });
+
+      charts.dbPaymentStatus = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Paid','Unpaid'],
+          datasets: [{ data: [paid, unpaid], backgroundColor: ['#22c55e', '#ef4444'], borderColor: '#ffffff', borderWidth: 2 }]
+        },
+        options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ usePointStyle:true, padding:8, font:{ size:11 } } } } }
+      });
+
+      // Ensure Chart.js recalculates layout once the dashboard is visible
+      try{
+        setTimeout(()=>{ if(charts.dbPaymentStatus){ charts.dbPaymentStatus.resize(); charts.dbPaymentStatus.update(); } }, 80);
+        requestAnimationFrame(()=>{ if(charts.dbPaymentStatus){ charts.dbPaymentStatus.resize(); charts.dbPaymentStatus.update(); } });
+      }catch(e){ /* ignore */ }
+    }
+
+    function renderDBExpensesChart(){
+      const ctx = document.getElementById('db_expensesChart');
+      if(!ctx) return;
+      if(charts.dbExpenses){ charts.dbExpenses.destroy(); }
+
+      const timeSeries = new Map();
+      rawData.forEach(row=>{
+        if(row.PaymentDate && row.Amount){ const d = new Date(row.PaymentDate); if(!isNaN(d)){ const key = d.toISOString().split('T')[0]; if(!timeSeries.has(key)) timeSeries.set(key,{date:d,collections:0,expenses:0}); timeSeries.get(key).collections += parseFloat(row.Amount)||0; }}
+      });
+      expensesData.forEach(row=>{
+        let d = null;
+        if(typeof row.Date === 'number' && !isNaN(row.Date)) { try{ d = excelSerialToJSDate(row.Date); }catch(e){} }
+        if(!d) { try{ d = new Date(row.Date); }catch(e){} }
+        if(d && !isNaN(d)){ const key = d.toISOString().split('T')[0]; if(!timeSeries.has(key)) timeSeries.set(key,{date:d,collections:0,expenses:0}); const amt = parseFloat(row.Amount||row['Amount Spent']||0)||0; timeSeries.get(key).expenses += amt; }
+      });
+
+      const sorted = Array.from(timeSeries.values()).sort((a,b)=>a.date-b.date);
+      const labels = sorted.map(d=>d.date.toLocaleDateString());
+      const collections = sorted.map(d=>d.collections);
+      const expenses = sorted.map(d=>d.expenses);
+
+      charts.dbExpenses = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets: [ { label:'Collections', data:collections, borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.08)', tension:0.4, fill:true }, { label:'Expenses', data:expenses, borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,0.08)', tension:0.4, fill:true } ] },
+        options: { responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{ callback: v=>'₹'+Number(v).toLocaleString() } } } }
+      });
+
+      // Ensure layout is correct after showing
+      try{ setTimeout(()=>{ if(charts.dbExpenses){ charts.dbExpenses.resize(); charts.dbExpenses.update(); } },80); requestAnimationFrame(()=>{ if(charts.dbExpenses){ charts.dbExpenses.resize(); charts.dbExpenses.update(); } }); }catch(e){}
+    }
+
+    function renderDBTopPayers(){
+      const el = document.getElementById('db_topPayers');
+      if(!el) return;
+      const byPayer = {};
+      rawData.forEach(r=>{ const name = (r.Name || r.Flat || 'Unknown'); const amt = parseFloat(r.Amount||0)||0; byPayer[name] = (byPayer[name]||0) + amt; });
+      const arr = Object.keys(byPayer).map(k=>({name:k,amt:byPayer[k]})).sort((a,b)=>b.amt-a.amt).slice(0,6);
+      if(arr.length===0){ el.textContent = 'No contributors yet'; return; }
+      el.innerHTML = arr.map(x=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0"><div>${escapeHtml(x.name)}</div><div style="font-weight:700">₹${x.amt.toLocaleString()}</div></div>`).join('');
+    }
+
+    function toBooleanPaid(val){
+      if(val===true) return true;
+      if(val===false) return false;
+      if(val==null) return false;
+      const s = String(val).trim().toLowerCase();
+      if(['yes','y','paid','true','1','done'].includes(s)) return true;
+      return false;
+    }
+
+    // Reminder helpers (persisted in localStorage)
+    const REMINDER_STORE_KEY = 'reminder_store_v1';
+    function getReminderStore(){
+      try{ return JSON.parse(localStorage.getItem(REMINDER_STORE_KEY) || '{}'); }catch(e){ return {}; }
+    }
+    function saveReminderStore(s){ localStorage.setItem(REMINDER_STORE_KEY, JSON.stringify(s||{})); }
+    function getReminderKey(row){ return `${row.Month}::${row.Flat}`; }
+    function getReminderForRow(row){ const s=getReminderStore(); return s[getReminderKey(row)]||null; }
+    function setReminderForRow(row, iso){ const s=getReminderStore(); s[getReminderKey(row)] = iso; saveReminderStore(s); }
+    function isReminderSentToday(row){ const iso = getReminderForRow(row); if(!iso) return false; try{ const d = new Date(iso); if(isNaN(d)) return false; const now = new Date(); return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth() && d.getDate()===now.getDate(); }catch(e){ return false; } }
+
+    function formatDateTime(iso){ if(!iso) return ''; try{ const d=new Date(iso); if(isNaN(d)) return ''; return d.toLocaleString(); }catch(e){ return ''; } }
+
+    function excelSerialToJSDate(serial){
+      const utc_days = Math.floor(serial - 25569);
+      const utc_value = utc_days * 86400;
+      const fractional_day = serial - Math.floor(serial);
+      const seconds = Math.round(86400 * fractional_day);
+      const date = new Date((utc_value + seconds) * 1000);
+      return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    }
+    function formatDate(val){
+      if(val === null || val === undefined || val === '') return '';
+      if(val instanceof Date && !isNaN(val)){
+        const d = val.getDate().toString().padStart(2,'0');
+        const m = (val.getMonth()+1).toString().padStart(2,'0');
+        const y = val.getFullYear();
+        return d+"-"+m+"-"+y;
+      }
+      if(typeof val === 'number' && !isNaN(val)){
+        try{ return formatDate(excelSerialToJSDate(val)); }catch(e){}
+      }
+      const s = String(val).trim();
+      const parsed = Date.parse(s);
+      if(!isNaN(parsed)) return formatDate(new Date(parsed));
+      return s;
+    }
+
+    function getMonthNameFromDateValue(val){
+      if(!val) return '';
+      let d=null;
+      if(val instanceof Date && !isNaN(val)) d=val;
+      else if(typeof val==='number' && !isNaN(val)) { try{ d=excelSerialToJSDate(val); }catch(e){} }
+      if(!d){
+        const s=String(val).trim();
+        const parsed=Date.parse(s);
+        if(!isNaN(parsed)) d=new Date(parsed);
+      }
+      if(!d || isNaN(d)) return '';
+      return d.toLocaleString(undefined,{month:'long'});
+    }
+
+    function renderCollectedStats(data){
+      const total = data.length;
+      const paid = data.filter(r=>r.__paid).length;
+      const unpaid = total - paid;
+      const collected = data.reduce((s,r)=>s + (parseFloat(r.Amount||0)||0), 0);
+      // Sum unpaid amounts (use Due if present, otherwise fall back to Amount for legacy unpaid entries)
+      const unpaidAmount = data.filter(r=>!r.__paid).reduce((s,r)=>{
+        const raw = (r.Due !== undefined && r.Due !== null && r.Due !== '') ? r.Due : (r['Amount Due'] || r.Amount || 0);
+        return s + (parseFloat(String(raw||'0').replace(/[^0-9.-]/g,'')) || 0);
+      },0);
+      statsDiv.innerHTML = `
+        <div class="stat">📊 <strong>${total}</strong> total</div>
+        <div class="stat">✅ <strong>${paid}</strong> paid <span id="paidEye" class="eye${paidView==='paid'?' active':''}" title="View paid">👁</span></div>
+        <div class="stat">❌ <strong>${unpaid}</strong> unpaid <span id="unpaidEye" class="eye${paidView==='unpaid'?' active':''}" title="View unpaid">👁</span></div>
+        <div class="stat">💸 <strong>${formatINR(unpaidAmount)}</strong> total unpaid</div>
+      `;
+      const paidEye = document.getElementById('paidEye');
+      const unpaidEye = document.getElementById('unpaidEye');
+      if(paidEye){ paidEye.addEventListener('click',()=>{ paidView = (paidView==='paid' ? 'all' : 'paid'); render(); }); }
+      if(unpaidEye){ unpaidEye.addEventListener('click',()=>{ paidView = (paidView==='unpaid' ? 'all' : 'unpaid'); render(); }); }
+    }
+
+    function renderExpensesStats(data){
+      const selectedMonths = getSelectedMonths();
+
+      // If 'all' or no specific months selected, show aggregated stats from expensesData
+      if(!selectedMonths){
+        const total = expensesData.filter(r=> r && (r['Amount Spent'] || r.Amount)).length;
+        const spent = expensesData.reduce((s,r)=>{
+          const amt = parseFloat(r['Amount Spent'] || r.Amount || 0) || 0; return s + amt;
+        },0);
+        const formatted = formatINR(spent);
+        statsDiv.innerHTML = `
+          <div class="stat">📊 <strong>${total}</strong> expenses</div>
+          <div class="stat">💸 <strong>${formatted}</strong> total spent</div>
+        `;
+        return;
+      }
+
+      const monthsLower = selectedMonths.map(s=>s.toLowerCase());
+      // Check if monthlyExpenseTotals has any supplied totals for the selected months
+      let suppliedTotal = 0;
+      let haveSupplied = false;
+      selectedMonths.forEach(m=>{
+        if(monthlyExpenseTotals && monthlyExpenseTotals[m]){ suppliedTotal += Number(monthlyExpenseTotals[m]) || 0; haveSupplied = true; }
+      });
+
+      let spent = 0;
+      let total = 0;
+
+      if(haveSupplied){
+        spent = suppliedTotal;
+        total = expensesData.filter(r=> monthsLower.includes(((r.__Month||r.Month||getMonthNameFromDateValue(r.Date))||'').toLowerCase())).length;
+      }else{
+        const rows = expensesData.filter(r=> monthsLower.includes(((r.__Month||r.Month||getMonthNameFromDateValue(r.Date))||'').toLowerCase()));
+        total = rows.length;
+        spent = rows.reduce((s,r)=> s + (parseFloat(r['Amount Spent'] || r.Amount || 0) || 0), 0);
+      }
+
+      const formattedSpent = formatINR(spent);
+      statsDiv.innerHTML = `
+        <div class="stat">📊 <strong>${total}</strong> expenses</div>
+        <div class="stat">💸 <strong>${formattedSpent}</strong> total spent</div>
+      `;
+    }
+
+    function renderTopSummary(){
+      // If Dashboard is active, hide the top summary card
+      if(currentTab === 'dashboard'){
+        if(topSummaryCard) topSummaryCard.style.display='none';
+        return;
+      }
+
+      const selectedMonths = getSelectedMonths();
+      let totalCollected = 0, totalExpenses = 0, netBalance = 0;
+
+      if(!selectedMonths){
+        // Calculate totals from all data when no specific months selected
+        totalCollected = rawData
+          .reduce((s,r)=> s + (parseFloat(r.Amount||0)||0), 0);
+        
+        // Calculate total expenses from all expenses data
+        totalExpenses = expensesData
+          .reduce((s,e)=> s + (parseFloat(e.Amount||e['Amount Spent']||0)||0), 0);
+        
+        netBalance = totalCollected - totalExpenses;
+        
+        const allItems = [
+          { metric: 'Total Collections', value: totalCollected },
+          { metric: 'Total Expenses', value: totalExpenses },
+          { metric: 'Net Balance', value: netBalance }
+        ];
+        
+        topSummaryCard.style.display='';
+        topSummaryDiv.innerHTML = allItems.map(x=>`<div class="stat"><strong>${x.metric}</strong> <span>₹ ${x.value.toLocaleString(undefined,{maximumFractionDigits:2})}</span></div>`).join('');
+        return;
+      }
+
+      const monthsLower = selectedMonths.map(s=>s.toLowerCase());
+
+      // Sum collections for selected months
+      totalCollected = rawData
+        .filter(r=> r && monthsLower.includes((r.Month||'').toLowerCase()))
+        .reduce((s,r)=> s + (parseFloat(r.Amount||0)||0), 0);
+
+      // Sum expenses for selected months: prefer monthlyExpenseTotals where available, otherwise calculate from entries
+      let suppliedSum = 0;
+      let haveSupplied = false;
+      selectedMonths.forEach(m=>{
+        if(monthlyExpenseTotals && monthlyExpenseTotals[m]) { suppliedSum += Number(monthlyExpenseTotals[m]) || 0; haveSupplied = true; }
+      });
+
+      if(haveSupplied){
+        totalExpenses = suppliedSum;
+      }else{
+        totalExpenses = expensesData
+          .filter(e=> monthsLower.includes(((e.__Month||e.Month||getMonthNameFromDateValue(e.Date))||'').toLowerCase()))
+          .reduce((s,e)=> s + (parseFloat(e.Amount||e['Amount Spent']||0)||0), 0);
+      }
+
+      netBalance = totalCollected - totalExpenses;
+      const monthItems = [
+        { metric: 'Total Collections', value: totalCollected },
+        { metric: 'Total Expenses', value: totalExpenses },
+        { metric: 'Net Balance', value: netBalance }
+      ];
+      topSummaryCard.style.display='';
+      topSummaryDiv.innerHTML = monthItems.map(x=>`<div class=\"stat\"><strong>${x.metric}</strong> <span>₹ ${x.value.toLocaleString(undefined,{maximumFractionDigits:2})}</span></div>`).join('');
+    }
+
+    function getCollectedBaseFiltered(){
+      const filter = paidView;
+      const q = (searchBox.value||'').trim().toLowerCase();
+      const selectedMonths = getSelectedMonths();
+      const monthsLower = selectedMonths ? selectedMonths.map(s=>s.toLowerCase()) : null;
+      return rawData.filter(row=>{
+        if(monthsLower && row.Month && !monthsLower.includes((row.Month||'').toLowerCase())) return false;
+        if(filter==='paid' && !row.__paid) return false;
+        if(filter==='unpaid' && row.__paid) return false;
+        if(q){
+          const hay = Object.values(row).join(' ').toLowerCase();
+          if(!hay.includes(q)) return false;
+        }
+        return true;
+      });
+    }
+    function getCollectedDisplay(){
+      const baseFiltered = getCollectedBaseFiltered();
+      return baseFiltered.filter(row=>{
+        for(const key in columnFilters){
+          const val = (columnFilters[key]||'').toString().trim();
+          if(!val) continue;
+          if(key==='Paid'){
+            if(val==='paid' && !row.__paid) return false;
+            if(val==='unpaid' && row.__paid) return false;
+            continue;
+          }
+          const cell = row[key];
+          const cellStr = (cell==null? '' : String(cell));
+          if(cellStr !== val) return false;
+        }
+        return true;
+      });
+    }
+    // PaymentQR Modal Functions
+    function showPaymentQR(row) {
+      const modal = document.getElementById('paymentQrModal');
+      const qrContainer = document.getElementById('qrCode');
+      const paymentInfo = document.getElementById('paymentInfo');
+      const upiId = '7697806560icici@ybl';
+      const amount = 2000;
+
+      // Generate UPI payment URL with standardized format
+      const upiUrl = generateUPIUrl({
+        payeeVpa: upiId,
+        amount: amount,
+        transactionNote: generateMaintenanceNote(row.Flat, row.Name || ''),
+        transactionRef: `MAINT${row.Flat}${new Date().getTime()}`
+      });
+      
+      // Clear previous QR code
+      qrContainer.innerHTML = '';
+      
+      // Create a new QR code instance
+      try {
+        const qr = new QRCode(qrContainer, {
+          text: upiUrl,
+          width: 200,
+          height: 200,
+          colorDark: '#000000',
+          colorLight: '#FFFFFF',
+          correctLevel: QRCode.CorrectLevel.H
+        });
+        
+        // Log for debugging
+        console.log('QR Code generated for URL:', upiUrl);
+      } catch (err) {
+        console.error('QR Code generation failed:', err);
+        qrContainer.innerHTML = '<p style="color: red">Failed to generate QR code. Please try again.</p>';
+      }
+      
+      // Update payment info
+      paymentInfo.innerHTML = `
+        <p><strong>Name:</strong> ${row.Name || 'N/A'}</p>
+        <p><strong>Flat:</strong> ${row.Flat}</p>
+      `;
+      
+      // Update amount display
+      document.getElementById('paymentAmount').textContent = formatINR(amount);
+
+      // Show modal
+      modal.classList.add('active');
+    }
+    
+    function hidePaymentQR() {
+      const modal = document.getElementById('paymentQrModal');
+      modal.classList.remove('active');
+    }
+    
+    // Modal close button
+    document.getElementById('paymentQrClose').addEventListener('click', hidePaymentQR);
+    
+    // Close modal when clicking outside
+    document.getElementById('paymentQrModal').addEventListener('click', (e) => {
+      if (e.target.id === 'paymentQrModal') {
+        hidePaymentQR();
+      }
+    });
+    
+    // Copy UPI ID functionality
+    document.getElementById('copyUpiBtn').addEventListener('click', async () => {
+      const upiId = document.getElementById('upiId').textContent;
+      const btn = document.getElementById('copyUpiBtn');
+      
+      try {
+        await navigator.clipboard.writeText(upiId);
+        btn.textContent = '✅ Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = '📋 Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy:', err);
+      }
+    });
+
+    let editExpenseRecord = null; // Used to track the record being edited
+    let editCollectionRecord = null; // Used to track the collection record being edited
+
+    // Recalculate and update the 'Total Collections' sentinel row for a month if present
+    function recalcMonthCollections(json, month){
+      try{
+        if(!json || !month) return;
+        const monthData = json[month];
+        if(!monthData || !Array.isArray(monthData)) return;
+        const total = monthData.reduce((s,r)=>{
+          const ref = r['Reference/Transaction ID'] || '';
+          if(ref && String(ref).toLowerCase().includes('total collections')) return s; // skip sentinel
+          const amt = parseFloat(r['Amount Received'] || r.Amount || 0) || 0; return s + amt;
+        },0);
+        const sentinelIndex = monthData.findIndex(r => {
+          const ref = r['Reference/Transaction ID'];
+          return ref && String(ref).toLowerCase().includes('total collections');
+        });
+        if(sentinelIndex !== -1){
+          monthData[sentinelIndex]['Amount Received'] = total;
+        }
+      }catch(e){ console.warn('recalcMonthCollections failed', e); }
+    }
+
+    function populateExpenseCategoryDropdown() {
+      const select = document.getElementById('expenseCategory');
+      const otherInput = document.getElementById('expenseCategoryOther');
+      
+      const seen = new Set();
+      const values = [];
+      expensesData.forEach(r => {
+        const v = r['Expense Category'];
+        const s = (v==null? '' : String(v));
+        if(s===''||seen.has(s)) return;
+        seen.add(s); values.push(s);
+      });
+      values.sort((a,b)=>a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
+      
+      const opts = ['<option value="">-- Select Category --</option>'].concat(values.map(v=>'<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>'));
+      opts.push('<option value="other">Other...</option>');
+      select.innerHTML = opts.join('');
+
+      select.onchange = () => {
+        if (select.value === 'other') {
+          otherInput.style.display = 'block';
+          otherInput.value = '';
+        } else {
+          otherInput.style.display = 'none';
+        }
+      };
+
+      // When opening the modal for editing, we need to set the value
+      if (editExpenseRecord && (editExpenseRecord['Expense Category'] || editExpenseRecord['Category'])) {
+        const category = editExpenseRecord['Expense Category'] || editExpenseRecord['Category'];
+        if (values.includes(category)) {
+          select.value = category;
+        } else {
+          select.value = 'other';
+        }
+      } else {
+        select.value = '';
+      }
+      // Manually trigger change to hide/show 'other' input on modal open
+      select.onchange();
+      
+      if (select.value === 'other' && editExpenseRecord && (editExpenseRecord['Expense Category'] || editExpenseRecord['Category'])) {
+        otherInput.value = editExpenseRecord['Expense Category'] || editExpenseRecord['Category'];
+      }
+    }
+
+    function populateExpenseMonthDropdown() {
+      const select = document.getElementById('expenseMonth');
+      const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      const currentMonth = new Date().toLocaleString('en-US', { month: 'long' });
+
+      let options = '<option value="">-- Select Month --</option>';
+      months.forEach(month => {
+        options += `<option value="${month}">${month}</option>`;
+      });
+      select.innerHTML = options;
+
+      // Set default to current month or the month from editExpenseRecord
+      if (editExpenseRecord && editExpenseRecord['Month']) {
+        select.value = editExpenseRecord['Month'];
+      } else {
+        select.value = currentMonth;
+      }
+    }
+
+    function openEditExpenseModal(row) {
+      editExpenseRecord = row;
+      const modal = document.getElementById('addExpenseModal');
+      modal.querySelector('h3').textContent = '✏️ Edit Expense';
+      
+      const date = row['Payment Date'] || row['Date'];
+      document.getElementById('expenseDate').value = date ? new Date(date).toISOString().split('T')[0] : '';
+      populateExpenseMonthDropdown(); // Populate month dropdown
+      document.getElementById('expenseVendor').value = row['Vendor/Payee'] || '';
+      document.getElementById('expenseMode').value = row['Payment Mode'] || '';
+      document.getElementById('expenseAmount').value = row['Amount Spent'] || row['Amount'] || '';
+      document.getElementById('expenseNotes').value = row['Notes'] || '';
+      
+      // Admin credentials are entered via the centralized login modal; no local inputs here
+
+      document.getElementById('addExpenseSubmit').textContent = 'Update';
+      populateExpenseCategoryDropdown();
+      modal.style.display = 'flex';
+    }
+
+    // Add Expense modal handlers
+    document.getElementById('addExpenseBtn').addEventListener('click', ()=>{
+      editExpenseRecord = null; // Ensure we are in 'add' mode
+      const modal = document.getElementById('addExpenseModal');
+      modal.querySelector('h3').textContent = '➕ Add New Expense (Admin)';
+      
+      // Clear all fields
+      modal.querySelectorAll('input:not([type=password]), textarea').forEach(el => {
+        if(el.type !== 'file') el.value = '';
+      });
+      // Admin credentials are managed via centralized login; no modal-specific admin inputs
+      
+      document.getElementById('addExpenseSubmit').textContent = 'Save';
+      populateExpenseCategoryDropdown();
+      populateExpenseMonthDropdown(); // Populate month dropdown
+      modal.style.display = 'flex';
+    });
+    document.getElementById('addExpenseClose').addEventListener('click', ()=>{ document.getElementById('addExpenseModal').style.display = 'none'; });
+    document.getElementById('addExpenseCancel').addEventListener('click', ()=>{ document.getElementById('addExpenseModal').style.display = 'none'; });
+
+    // Admin login/logout UI handlers
+    const loginBtnEl = document.getElementById('loginBtn');
+    const logoutBtnEl = document.getElementById('logoutBtn');
+    if(loginBtnEl) loginBtnEl.addEventListener('click', showLoginModal);
+    if(logoutBtnEl) logoutBtnEl.addEventListener('click', logoutAdmin);
+    const loginClose = document.getElementById('loginClose');
+    const loginCancel = document.getElementById('loginCancel');
+    if(loginClose) loginClose.addEventListener('click', hideLoginModal);
+    if(loginCancel) loginCancel.addEventListener('click', hideLoginModal);
+    const loginSubmit = document.getElementById('loginSubmit');
+    if(loginSubmit) loginSubmit.addEventListener('click', async ()=>{
+      const u = document.getElementById('loginUser').value.trim();
+      const p = document.getElementById('loginPwd').value;
+      await loginAdmin(u,p);
+    });
+
+    // Check session on load and update UI accordingly
+    fetchSession();
+
+    // Upload receipt file to Azure Blob Storage (container SAS required)
+    async function uploadReceiptFile(file){
+      if(!file) return null;
+      if(!UPDATE_RECEIPT_CONTAINER_SAS_URL){
+        throw new Error('Receipt upload SAS URL not configured. Set receiptUploadSasUrl in config.json or inline config.');
+      }
+      // Build blob name
+      const ts = Date.now();
+      const safeName = file.name.replace(/[^a-z0-9\.\-_]/ig,'_');
+      const blobName = `receipts/${ts}_${safeName}`;
+      // If provided SAS is a container URL (no blob name and contains ?), append blobName before ? or after depending
+      let base = UPDATE_RECEIPT_CONTAINER_SAS_URL;
+      // If container SAS already includes a trailing '/', remove
+      base = base.replace(/\/+$/,'');
+      const url = base.includes('?') ? `${base.split('?')[0]}/${encodeURIComponent(blobName)}?${base.split('?')[1]}` : `${base}/${encodeURIComponent(blobName)}`;
+
+      const res = await fetch(url, { method: 'PUT', headers: { 'x-ms-blob-type': 'BlockBlob', 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+      if(!res.ok) throw new Error('Upload failed: HTTP '+res.status);
+      // Blob URL without SAS for public access (if container is public). Otherwise return URL with SAS so UI can download.
+      return url.split('?')[0];
+    }
+
+    // Add Collection modal handlers
+    document.getElementById('addCollectionBtn').addEventListener('click', ()=>{
+      const modal = document.getElementById('addCollectionModal');
+      editCollectionRecord = null; // ensure add mode
+
+      // Clear all fields
+      modal.querySelectorAll('input, textarea, select').forEach(el => {
+        if(el.type !== 'button' && el.id !== 'collectionAmount') el.value = '';
+      });
+      // Admin credentials handled through centralized login; no modal-specific admin inputs
+      document.getElementById('collectionAmount').value = '2000';
+      document.getElementById('collectionStatus').value = 'paid';
+      document.getElementById('collectionDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('addCollectionSubmit').textContent = 'Save';
+
+      populateCollectionMonthDropdown();
+      populateCollectionFlatDropdown();
+      modal.style.display = 'flex';
+    });
+    document.getElementById('addCollectionClose').addEventListener('click', ()=>{ document.getElementById('addCollectionModal').style.display = 'none'; editCollectionRecord = null; });
+    document.getElementById('addCollectionCancel').addEventListener('click', ()=>{ document.getElementById('addCollectionModal').style.display = 'none'; editCollectionRecord = null; });
+
+    async function openEditCollectionModal(row){
+      // prepare edit state and open modal with pre-filled values
+      const modal = document.getElementById('addCollectionModal');
+      modal.querySelector('h3').textContent = '✏️ Edit Collection';
+
+      // Determine month for the row
+      const month = row.Month || row['Month'] || getMonthNameFromDateValue(row.Date || row['Date'] || row['Payment Date']);
+
+      // Try to fetch latest JSON and locate the exact record index to allow robust updates
+      try{
+        const res = await fetch(READ_JSON_URL, { cache: 'no-store' });
+        if(res.ok){
+          const json = await res.json();
+          const monthData = json[month];
+          if(Array.isArray(monthData)){
+            // Best-effort match: match by flat and amount and date (normalized) or reference
+            const targetFlat = row.Flat || row['Flat Number'] || row['Flat'];
+            const targetAmt = parseFloat(row.Amount || row['Amount Received'] || 0) || 0;
+            const targetDateNorm = (row.Date || row['Date'] || row['Payment Date']) ? (new Date(row.Date || row['Date'] || row['Payment Date']).toISOString().split('T')[0]) : '';
+            const targetRef = (row['Reference/Transaction ID'] || '') ;
+
+            const idx = monthData.findIndex(r=>{
+              const matchFlat = (r['Flat Number'] == targetFlat);
+              const amt = parseFloat(r['Amount Received']||r.Amount||0) || 0;
+              const matchAmt = amt === targetAmt;
+              const rDate = (r.Date || r['Date'] || r['Payment Date'] || '');
+              const rDateNorm = rDate ? (new Date(rDate).toISOString().split('T')[0]) : '';
+              const matchDate = targetDateNorm && rDateNorm === targetDateNorm;
+              const matchRef = (r['Reference/Transaction ID'] || '') === targetRef && targetRef;
+              return matchFlat && (matchRef || matchDate || matchAmt);
+            });
+
+            if(idx !== -1){
+              editCollectionRecord = { month, index: idx };
+              const src = monthData[idx];
+              // Fill form values from source to ensure consistent format
+              document.getElementById('collectionDate').value = (src.Date || src['Date'] || src['Payment Date']) ? new Date(src.Date || src['Date'] || src['Payment Date']).toISOString().split('T')[0] : '';
+              populateCollectionMonthDropdown();
+              document.getElementById('collectionMonth').value = month;
+              populateCollectionFlatDropdown();
+              document.getElementById('collectionFlat').value = src['Flat Number'] || src['Flat'] || '';
+              document.getElementById('collectionResident').value = src['Name'] || '';
+              document.getElementById('collectionAmount').value = src['Amount Received'] || src.Amount || '';
+              document.getElementById('collectionMode').value = src['Payment Mode'] || '';
+              document.getElementById('collectionRef').value = src['Reference/Transaction ID'] || '';
+              document.getElementById('collectionNotes').value = src['Notes'] || '';
+            } else {
+              // fallback: use the provided row values
+              editCollectionRecord = Object.assign({}, row);
+              document.getElementById('collectionDate').value = (row.Date || row['Date'] || row['Payment Date']) ? new Date(row.Date || row['Date'] || row['Payment Date']).toISOString().split('T')[0] : '';
+              populateCollectionMonthDropdown();
+              document.getElementById('collectionMonth').value = month || '';
+              populateCollectionFlatDropdown();
+              document.getElementById('collectionFlat').value = row.Flat || row['Flat Number'] || row['Flat'] || '';
+              document.getElementById('collectionResident').value = row.Name || '';
+              document.getElementById('collectionAmount').value = row.Amount || row['Amount Received'] || '';
+              document.getElementById('collectionMode').value = row['Payment Mode'] || '';
+              document.getElementById('collectionRef').value = row['Reference/Transaction ID'] || '';
+              document.getElementById('collectionNotes').value = row['Notes'] || '';
+            }
+          }
+        } else {
+          // Could not fetch, fallback to using given row
+          editCollectionRecord = Object.assign({}, row);
+          document.getElementById('collectionDate').value = (row.Date || row['Date'] || row['Payment Date']) ? new Date(row.Date || row['Date'] || row['Payment Date']).toISOString().split('T')[0] : '';
+          populateCollectionMonthDropdown();
+          document.getElementById('collectionMonth').value = month || '';
+          populateCollectionFlatDropdown();
+          document.getElementById('collectionFlat').value = row.Flat || row['Flat Number'] || row['Flat'] || '';
+          document.getElementById('collectionResident').value = row.Name || '';
+          document.getElementById('collectionAmount').value = row.Amount || row['Amount Received'] || '';
+          document.getElementById('collectionMode').value = row['Payment Mode'] || '';
+          document.getElementById('collectionRef').value = row['Reference/Transaction ID'] || '';
+          document.getElementById('collectionNotes').value = row['Notes'] || '';
+        }
+      }catch(e){
+        // ignore and fallback
+        editCollectionRecord = Object.assign({}, row);
+        document.getElementById('collectionDate').value = (row.Date || row['Date'] || row['Payment Date']) ? new Date(row.Date || row['Date'] || row['Payment Date']).toISOString().split('T')[0] : '';
+        populateCollectionMonthDropdown();
+        document.getElementById('collectionMonth').value = month || '';
+        populateCollectionFlatDropdown();
+        document.getElementById('collectionFlat').value = row.Flat || row['Flat Number'] || row['Flat'] || '';
+        document.getElementById('collectionResident').value = row.Name || '';
+        // If the row has Due (unpaid), show it in the Amount field and set status to unpaid
+        document.getElementById('collectionAmount').value = (row.__paid ? (row.Amount || row['Amount Received'] || '') : (row.Due || row['Amount Due'] || row.Amount || ''));
+        document.getElementById('collectionStatus').value = row.__paid ? 'paid' : 'unpaid';
+        document.getElementById('collectionMode').value = row['Payment Mode'] || '';
+        document.getElementById('collectionRef').value = row['Reference/Transaction ID'] || '';
+        document.getElementById('collectionNotes').value = row['Notes'] || '';
+      }
+
+      // Admin creds handled via centralized login modal; no per-modal admin inputs
+      document.getElementById('addCollectionSubmit').textContent = 'Update';
+      modal.style.display = 'flex';
+    }
+
+    function populateCollectionMonthDropdown() {
+      const select = document.getElementById('collectionMonth');
+      const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      const currentMonth = new Date().toLocaleString('en-US', { month: 'long' });
+
+      let options = '<option value="">-- Select Month --</option>';
+      months.forEach(month => {
+        options += `<option value="${month}">${month}</option>`;
+      });
+      select.innerHTML = options;
+      select.value = currentMonth;
+    }
+
+    function populateCollectionFlatDropdown() {
+      const select = document.getElementById('collectionFlat');
+      const residentNameInput = document.getElementById('collectionResident');
+      
+      const flats = [...new Set(rawData.map(r => r.Flat).filter(f => f))].sort((a,b) => a - b);
+      
+      let options = '<option value="">-- Select Flat --</option>';
+      flats.forEach(flat => {
+        options += `<option value="${flat}">${flat}</option>`;
+      });
+      select.innerHTML = options;
+
+      select.onchange = () => {
+        const selectedFlat = select.value;
+        const resident = rawData.find(r => r.Flat == selectedFlat);
+        if (resident) {
+          residentNameInput.value = resident.Name || '';
+        } else {
+          residentNameInput.value = '';
+        }
+      };
+      };
+    
+
+    document.getElementById('addCollectionSubmit').addEventListener('click', async () => {
+      if(!(await ensureAdmin())) return; // require admin session before proceeding
+      try {
+        // Admin session already required via ensureAdmin(); local credential fields removed
+
+        const month = document.getElementById('collectionMonth').value;
+        const flat = document.getElementById('collectionFlat').value;
+        const amount = parseFloat(document.getElementById('collectionAmount').value) || 0;
+        const paymentDate = document.getElementById('collectionDate').value;
+        const paymentMode = document.getElementById('collectionMode').value.trim();
+        const ref = document.getElementById('collectionRef').value.trim();
+        const notes = document.getElementById('collectionNotes').value.trim();
+        const status = document.getElementById('collectionStatus') ? document.getElementById('collectionStatus').value : 'paid';
+
+        if (!month) return alert('Please select a Month.');
+        if (!flat) return alert('Please select a Flat Number.');
+        if (amount <= 0) return alert('Please enter a valid Amount.');
+        if (status === 'paid' && !paymentDate) return alert('Please enter a Payment Date.');
+
+        // Fetch the latest JSON data to avoid conflicts
+        const res = await fetch(READ_JSON_URL, { cache: 'no-store' });
+        if (!res.ok) throw new Error('Unable to fetch latest data: HTTP ' + res.status);
+        const json = await res.json();
+
+        const monthData = json[month];
+        if (!monthData || !Array.isArray(monthData)) {
+          throw new Error(`Month data for "${month}" not found or is not an array in the source data.`);
+        }
+
+        if (editCollectionRecord) {
+          // UPDATE existing collection entry
+          let updated = false;
+          if (editCollectionRecord.month && typeof editCollectionRecord.index === 'number' && json[editCollectionRecord.month] && Array.isArray(json[editCollectionRecord.month])){
+            const idx = editCollectionRecord.index;
+            if (idx >=0 && idx < json[editCollectionRecord.month].length){
+              // basic sanity check: same flat
+              const candidate = json[editCollectionRecord.month][idx];
+              if(String(candidate['Flat Number']) == String(flat) || String(candidate['Flat']) == String(flat)){
+                let updatedRecord;
+                if(status === 'paid'){
+                  updatedRecord = {
+                    ...candidate,
+                    'Amount Received': amount,
+                    'Amount Due': null,
+                    'paid': true,
+                    'Date': paymentDate || null,
+                    'Payment Mode': paymentMode || null,
+                    'Reference/Transaction ID': ref || null,
+                    'Notes': notes || null
+                  };
+                }else{
+                  updatedRecord = {
+                    ...candidate,
+                    'Amount Received': 0,
+                    'Amount Due': amount,
+                    'paid': false,
+                    'Date': paymentDate || null,
+                    'Payment Mode': paymentMode || null,
+                    'Reference/Transaction ID': ref || null,
+                    'Notes': notes || null
+                  };
+                }
+                json[editCollectionRecord.month][idx] = updatedRecord;
+                updated = true;
+              }
+            }
+          }
+
+          // Fallback to best-effort matching if above didn't succeed
+          if(!updated){
+            const idx = monthData.findIndex(r=>{
+              // match by flat, date, amount and reference if available
+              const matchFlat = r['Flat Number'] == editCollectionRecord['Flat Number'];
+              const amt = parseFloat(r['Amount Received']||r.Amount||0) || 0;
+              const matchAmt = amt === targetAmt;
+              const rDate = (r.Date || r['Date'] || r['Payment Date'] || '');
+              const rDateNorm = rDate ? (new Date(rDate).toISOString().split('T')[0]) : '';
+              const matchDate = targetDateNorm && rDateNorm === targetDateNorm;
+              const matchRef = (r['Reference/Transaction ID'] || '') === targetRef && targetRef;
+              return matchFlat && (matchRef || matchDate || matchAmt);
+            });
+            if(idx === -1){
+              return alert('Original collection record not found. It may have been modified. Please refresh.');
+            }
+            let updatedRecord;
+            if(status === 'paid'){
+              updatedRecord = {
+                ...monthData[idx],
+                'Amount Received': amount,
+                'Amount Due': null,
+                'paid': true,
+                'Date': paymentDate || null,
+                'Payment Mode': paymentMode || null,
+                'Reference/Transaction ID': ref || null,
+                'Notes': notes || null
+              };
+            }else{
+              updatedRecord = {
+                ...monthData[idx],
+                'Amount Received': 0,
+                'Amount Due': amount,
+                'paid': false,
+                'Date': paymentDate || null,
+                'Payment Mode': paymentMode || null,
+                'Reference/Transaction ID': ref || null,
+                'Notes': notes || null
+              };
+            }
+            monthData[idx] = updatedRecord;
+          }
+        } else {
+          // ADD new collection entry for the month
+          let newRecord;
+          if(status === 'paid'){
+            newRecord = {
+              'Flat Number': flat,
+              'Amount Received': amount,
+              'Amount Due': null,
+              'paid': true,
+              'Date': paymentDate,
+              'Payment Mode': paymentMode || null,
+              'Reference/Transaction ID': ref || null,
+              'Notes': notes || null
+            };
+          }else{
+            newRecord = {
+              'Flat Number': flat,
+              'Amount Received': 0,
+              'Amount Due': amount,
+              'paid': false,
+              'Date': paymentDate || null,
+              'Payment Mode': paymentMode || null,
+              'Reference/Transaction ID': ref || null,
+              'Notes': notes || null
+            };
+          }
+
+          // If we can find the resident's name from existing month data, copy it for clarity
+          const resident = monthData.find(r => r['Flat Number'] == flat);
+          if (resident && resident['Name']) newRecord['Name'] = resident['Name'];
+
+          monthData.push(newRecord);
+        }
+
+        // Recalculate total collections sentinel for the month if present
+        recalcMonthCollections(json, month);
+        
+        // Persist the updated JSON back to blob storage
+        if (UPDATE_BLOB_SAS_URL) {
+          const putRes = await fetch(UPDATE_BLOB_SAS_URL, {
+            method: 'PUT',
+            headers: { 'x-ms-blob-type': 'BlockBlob', 'Content-Type': 'application/json' },
+            body: JSON.stringify(json)
+          });
+          if (!putRes.ok) throw new Error('Blob update failed: HTTP ' + putRes.status);
+        } else {
+          alert('No backend configured to save changes. Set UPDATE_BLOB_SAS_URL in config.');
+          return;
+        }
+
+        // Refresh UI
+        clearCachedData();
+        processMaintenanceData(json);
+        alert((editCollectionRecord ? 'Collection updated' : 'Collection added') + ' successfully for Flat ' + flat);
+        document.getElementById('addCollectionModal').style.display = 'none';
+        editCollectionRecord = null;
+
+      } catch (err) {
+        console.error('Failed to add collection:', err);
+        alert('Failed to add collection: ' + err.message);
+      }
+    });
+
+    // Add new expense flow
+    document.getElementById('addExpenseSubmit').addEventListener('click', async ()=>{
+      if(!(await ensureAdmin())) return; // require admin session before proceeding
+      try{
+        // Admin session enforced via ensureAdmin(); per-modal credential fields removed
+
+        const paymentDate = document.getElementById('expenseDate').value || null;
+        const monthText = document.getElementById('expenseMonth').value.trim();
+        const categorySelect = document.getElementById('expenseCategory');
+        let category = categorySelect.value;
+        if (category === 'other') {
+          category = document.getElementById('expenseCategoryOther').value.trim();
+        }
+        const vendor = document.getElementById('expenseVendor').value.trim();
+        const mode = document.getElementById('expenseMode').value.trim();
+        const amount = parseFloat(document.getElementById('expenseAmount').value) || 0;
+        const notes = document.getElementById('expenseNotes').value.trim();
+        const receiptInput = document.getElementById('expenseReceipt');
+
+        if(!monthText){ return alert('Please enter Month (e.g., October)'); }
+        if(!category){ return alert('Please enter Expense Category'); }
+        if(!amount || amount <= 0){ return alert('Please enter a valid Amount'); }
+
+        // Handle receipt upload first, so the URL is available for both add and edit
+        let receiptUrl = null;
+        if(receiptInput && receiptInput.files && receiptInput.files.length){
+          try{
+            receiptUrl = await uploadReceiptFile(receiptInput.files[0]);
+          }catch(err){
+            console.error('Receipt upload failed', err); 
+            alert('Receipt upload failed: '+err.message); 
+            return;
+          }
+        }
+
+        // Fetch current JSON
+        const res = await fetch(READ_JSON_URL, { cache:'no-store' });
+        if(!res.ok) throw new Error('Unable to fetch JSON: HTTP '+res.status);
+        const json = await res.json();
+
+        if (editExpenseRecord) {
+          // UPDATE LOGIC
+          const expenseIndex = json.Expenses.findIndex(exp => {
+              const amount1 = parseFloat(exp['Amount Spent'] || exp.Amount || 0);
+              const amount2 = parseFloat(editExpenseRecord['Amount Spent'] || editExpenseRecord.Amount || 0);
+              const date1 = exp.Date || exp['Payment Date'];
+              const date2 = editExpenseRecord.Date || editExpenseRecord['Payment Date'];
+              return exp['Expense Category'] === editExpenseRecord['Expense Category'] &&
+                     amount1 === amount2 &&
+                     date1 === date2 &&
+                     exp['Vendor/Payee'] === editExpenseRecord['Vendor/Payee'];
+          });
+
+          if (expenseIndex === -1) {
+            return alert('Original expense record not found. It may have been modified. Please refresh.');
+          }
+
+          // Prepare the updated record
+          const updatedRecord = {
+            ...json.Expenses[expenseIndex], // Preserve existing fields
+            'Payment Date': paymentDate ? new Date(paymentDate).toISOString() : null,
+            'Expense Category': category,
+            'Vendor/Payee': vendor || null,
+            'Payment Mode': mode || null,
+            'Amount Spent': amount,
+            'Notes': notes || null,
+            'Month': monthText || null,
+          };
+          // If a new receipt was uploaded, update the URL
+          if (receiptUrl) {
+            updatedRecord.ReceiptUrl = receiptUrl;
+          }
+          
+          json.Expenses[expenseIndex] = updatedRecord;
+
+        } else {
+          // ADD LOGIC
+          const newRow = {
+            'Payment Date': paymentDate ? new Date(paymentDate).toISOString() : null,
+            'Expense Category': category,
+            'Vendor/Payee': vendor || null,
+            'Payment Mode': mode || null,
+            'Amount Spent': amount,
+            'Notes': notes || null,
+            'Month': monthText || null,
+          };
+          if(receiptUrl) newRow.ReceiptUrl = receiptUrl;
+
+          if(!Array.isArray(json['Expenses'])) json['Expenses'] = [];
+          json['Expenses'].push(newRow);
+        }
+
+        // Persist updated JSON back to blob
+        if(UPDATE_BLOB_SAS_URL){
+          const putRes = await fetch(UPDATE_BLOB_SAS_URL, { method:'PUT', headers:{ 'x-ms-blob-type':'BlockBlob', 'Content-Type':'application/json' }, body: JSON.stringify(json) });
+          if(!putRes.ok) throw new Error('Blob update failed: HTTP '+putRes.status);
+        }else{
+          alert('No backend configured to save changes. Set UPDATE_BLOB_SAS_URL in config.');
+          return;
+        }
+
+        // Refresh UI
+        clearCachedData();
+        processMaintenanceData(json);
+        alert(`Expense ${editExpenseRecord ? 'updated' : 'added'} successfully`);
+        document.getElementById('addExpenseModal').style.display = 'none';
+        editExpenseRecord = null; // Reset edit state
+
+      }catch(err){ console.error(err); alert(`Failed to ${editExpenseRecord ? 'update' : 'add'} expense: `+err.message); }
+    });
+    
+    function renderCollectedTable(){
+      const baseFiltered = getCollectedBaseFiltered();
+      const display = getCollectedDisplay();
+
+      renderCollectedStats(display);
+
+      if(display.length===0){ tableContainer.innerHTML = '<div class="small muted">📋 No records to show</div>'; return; }
+
+      const cols = display.length > 0 ? [...Object.keys(display[0]).filter(c=>!c.startsWith('__') && c !== 'Reminder' && (isAdmin || c !== 'Contact'))] : [];
+      // Only include the Action column for admins
+      if(isAdmin && cols.length>0){ cols.push('Action'); }
+      const collectionTableWrapper = document.createElement('div');
+      collectionTableWrapper.className = 'table-container';
+      const table = document.createElement('table');
+      table.className = 'table';
+      const thead = document.createElement('thead');
+      const trh = document.createElement('tr');
+      cols.forEach(c=>{ 
+        const th = document.createElement('th'); 
+        const icon = getColumnIcon(c);
+        th.innerHTML = icon ? `${icon} ${c}` : c; 
+        trh.appendChild(th); 
+      });
+      thead.appendChild(trh);
+      // filters row with dropdowns populated from baseFiltered unique values
+      const trf = document.createElement('tr');
+      cols.forEach(c=>{
+        const th = document.createElement('th');
+        if (c === 'Action') {
+          th.innerHTML = ''; // No filter for action column
+        } else {
+          const sel=document.createElement('select');
+          if(c==='Paid'){
+            sel.innerHTML='<option value="">All</option><option value="paid">Paid</option><option value="unpaid">Unpaid</option>';
+          }else{
+            const seen = new Set();
+            const values = [];
+            baseFiltered.forEach(r=>{
+              const v = r[c];
+              const s = (v==null? '' : String(v));
+              if(s===''||seen.has(s)) return;
+              seen.add(s); values.push(s);
+            });
+            values.sort((a,b)=>a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
+            const opts = ['<option value="">All</option>'].concat(values.map(v=>'<option value="'+v.replace(/"/g,'&quot;')+'">'+v.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>'));
+            sel.innerHTML = opts.join('');
+          }
+          sel.value = (columnFilters[c]||'');
+          sel.addEventListener('change',()=>{ columnFilters[c]=sel.value; render(); });
+          th.appendChild(sel);
+        }
+        trf.appendChild(th);
+      });
+      thead.appendChild(trf);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      display.forEach((row,idx)=>{
+        const tr = document.createElement('tr');
+        cols.forEach(c=>{
+          const td = document.createElement('td');
+          if(c==='Paid'){
+            const isPaid = !!row.__paid;
+            if (isPaid) {
+              td.innerHTML = '<span class="badge paid">Paid</span>';
+            } else {
+              const payButton = document.createElement('button');
+              payButton.className = 'action-link';
+              payButton.style.cssText = 'font-size: 0.875rem; border: none; background: #dbeafe; color: #1e40af; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;';
+              payButton.innerHTML = '💳 Pay Now';
+              payButton.onmouseover = () => payButton.style.background = '#bfdbfe';
+              payButton.onmouseout = () => payButton.style.background = '#dbeafe';
+              payButton.onclick = () => showPaymentQR(row);
+              td.appendChild(payButton);
+            }
+          } else if (c === 'Action') {
+            // Actions: Edit, Delete (only visible to Admins)
+            if(isAdmin){
+              // If unpaid, show Send Reminder button (admin only)
+              if(!row.__paid){
+                const sendBtn = document.createElement('button');
+                sendBtn.innerHTML = '📣 Send Reminder';
+                sendBtn.className = 'ghost';
+                sendBtn.style.cssText = 'font-size: 12px; padding: 4px 8px; margin-right: 6px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;';
+                sendBtn.onclick = async () => { await sendReminder(row, sendBtn); };
+                td.appendChild(sendBtn);
+
+                const ts = document.createElement('div');
+                ts.className = 'small muted reminder-timestamp';
+                ts.textContent = row.Reminder ? ('Reminder: ' + formatDateTime(row.Reminder)) : '';
+                td.appendChild(ts);
+              }
+
+              const editBtn = document.createElement('button');
+              editBtn.innerHTML = '✏️ Edit';
+              editBtn.className = 'ghost';
+              editBtn.style.cssText = 'font-size: 12px; padding: 4px 8px; margin-right: 4px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;';
+              editBtn.onclick = () => openEditCollectionModal(row);
+              td.appendChild(editBtn);
+
+              const delBtn = document.createElement('button');
+              delBtn.innerHTML = '🗑️ Delete';
+              delBtn.className = 'ghost';
+              delBtn.style.cssText = 'font-size: 12px; padding: 4px 8px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease;';
+              delBtn.onclick = () => deleteCollection(row);
+              td.appendChild(delBtn);
+            }
+          }
+          else{
+            td.textContent = row[c] == null ? '' : row[c];
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      const tableWrapper = document.createElement('div');
+      tableWrapper.className = 'table-container';
+      tableWrapper.appendChild(table);
+      tableContainer.innerHTML='';
+      tableContainer.appendChild(tableWrapper);
+    }
+
+    function getExpensesBaseFiltered(){
+      const q = (searchBox.value||'').trim().toLowerCase();
+      const selectedMonths = getSelectedMonths();
+      const monthsLower = selectedMonths ? selectedMonths.map(s=>s.toLowerCase()) : null;
+      return expensesData.filter(row=>{
+        if(monthsLower){
+          // Get the date from either Date or Payment Date field
+          const dateVal = row.Date || row['Payment Date'];
+          
+          // Try to get month name from the date
+          let monthName = '';
+          
+          if (dateVal) {
+            // If it's a number (Excel serial date)
+            if (typeof dateVal === 'number' && !isNaN(dateVal)) {
+              try {
+                const jsDate = excelSerialToJSDate(dateVal);
+                monthName = jsDate.toLocaleString('en-US', { month: 'long' });
+                if (dateVal.toString().includes(' ')) {
+                  monthName += ' ' + jsDate.getFullYear();
+                }
+              } catch(e) {}
+            } 
+            // If it's a string date
+           
+            else if (typeof dateVal === 'string') {
+              try {
+                const date = new Date(dateVal);
+                if (!isNaN(date)) {
+                  monthName = date.toLocaleString('en-US', { month: 'long' });
+                  if (dateVal.includes(' ')) {
+                    monthName += ' ' + date.getFullYear();
+                  }
+                }
+              } catch(e) {}
+            }
+          }
+          
+          // If we couldn't get a month name from the date, try the __Month property
+          if (!monthName) {
+            monthName = row.__Month || '';
+          }
+          
+          // Compare month names case-insensitively
+          if (!monthsLower.includes((monthName||'').toLowerCase())) {
+            return false;
+          }
+        }
+        
+        if(q){
+          const hay = Object.values(row).join(' ').toLowerCase();
+          if(!hay.includes(q)) return false;
+        }
+        return true;
+      });
+    }
+
+    async function sendReminder(row, buttonEl){
+      if(!(await ensureAdmin())) return;
+      try{
+        const contact = row.Contact || '';
+        if(!contact) return alert('No contact found for this record. Please add a contact number in the source data.');
+
+        if(isReminderSentToday(row)) return alert('A reminder has already been sent today for this flat.');
+
+        const confirmed = confirm(`Send reminder to ${row.Name || 'Resident'} (Flat ${row.Flat}) for ₹${row.Amount} for ${row.Month}?`);
+        if(!confirmed) return;
+
+        const originalText = buttonEl.innerHTML;
+        buttonEl.disabled = true; buttonEl.innerHTML = '⏳ Sending...';
+
+        const message = `Dear ${row.Name || 'Resident'}, Kindly pay your NLC Aadya maintenance of ₹${row.Amount} for the month of ${row.Month} by 15th ${row.Month} to avoid late fees. If paid, please ignore. Thank you!`;
+
+        const res = await fetch(SEND_WHATSAPP_URL, { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ to: contact, body: message }) });
+        if(!res.ok){
+          const txt = await res.text().catch(()=>res.statusText||'');
+          throw new Error(txt || ('HTTP '+res.status));
+        }
+
+        // Success
+        const iso = new Date().toISOString();
+        setReminderForRow(row, iso);
+        // Update UI
+        buttonEl.innerHTML = '✅ Sent';
+        const ts = buttonEl.parentElement.querySelector('.reminder-timestamp');
+        if(ts) ts.textContent = 'Reminder: ' + formatDateTime(iso);
+        // Persist note locally; clear cache to force re-render from fresh data if necessary
+        // clearCachedData(); // not needed since we only update local marker
+      }catch(err){
+        console.error('Failed to send reminder', err);
+        alert('Failed to send reminder: ' + (err && err.message || err));
+        if(buttonEl){ buttonEl.disabled = false; buttonEl.innerHTML = originalText || '📣 Send Reminder'; }
+      }
+    }
+    function getExpensesDisplay(){
+      const baseFiltered = getExpensesBaseFiltered();
+      return baseFiltered.filter(row=>{
+        for(const key in expensesColumnFilters){
+          const val = (expensesColumnFilters[key]||'').toString().trim();
+          if(!val) continue;
+          const cell = row[key];
+          const cellStr = (cell==null? '' : String(cell));
+          if(cellStr !== val) return false;
+        }
+        return true;
+      });
+    }
+    function renderExpensesTable(){
+      const baseFiltered = getExpensesBaseFiltered();
+      const display = getExpensesDisplay();
+
+      renderExpensesStats(display);
+
+      const expensesContainer = document.getElementById('expensesTableContainer');
+      if(!display.length){ expensesContainer.innerHTML = '<div class="small muted">💸 No expenses to show</div>'; return; }
+
+      // Explicitly define the columns and their order for clarity and control
+      const finalCols = ['Month', 'Expense Category', 'Vendor/Payee', 'Amount Spent', 'Payment Date', 'Notes', 'Receipt'].concat(isAdmin ? ['Actions'] : []);
+
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const trh = document.createElement('tr');
+      finalCols.forEach(c=>{ 
+        const th = document.createElement('th'); 
+        const icon = getColumnIcon(c);
+        th.innerHTML = icon ? `${icon} ${c}` : c; 
+        trh.appendChild(th); 
+      });
+      thead.appendChild(trh);
+      // filters row
+      const trf = document.createElement('tr');
+      finalCols.forEach(c=>{
+        const th = document.createElement('th');
+        if (['Actions', 'Receipt', 'Notes'].includes(c)) { // No filters for these columns
+          th.innerHTML = '';
+        } else {
+          const sel=document.createElement('select');
+          const seen = new Set();
+          const values = [];
+          baseFiltered.forEach(r=>{
+            const v = r[c];
+            const s = (v==null? '' : String(v));
+            if(s===''||seen.has(s)) return;
+            seen.add(s); values.push(s);
+          });
+          values.sort((a,b)=>a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
+          const opts = ['<option value="">All</option>'].concat(values.map(v=>'<option value="'+v.replace(/"/g,'&quot;')+'">'+v.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</option>'));
+          sel.innerHTML = opts.join('');
+          sel.value = (expensesColumnFilters[c]||'');
+          sel.addEventListener('change',()=>{ expensesColumnFilters[c]=sel.value; renderExpensesTable(); });
+          th.appendChild(sel);
+        }
+        trf.appendChild(th);
+      });
+      thead.appendChild(trf);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      display.forEach(row=>{
+        const tr = document.createElement('tr');
+        finalCols.forEach(c=>{ 
+          const td = document.createElement('td'); 
+          if (c === 'Receipt') {
+            if (row.ReceiptUrl) {
+              const link = document.createElement('a');
+              link.href = row.ReceiptUrl;
+              link.target = '_blank';
+              link.textContent = 'View';
+              link.className = 'action-link';
+              td.appendChild(link);
+            } else {
+              td.textContent = 'N/A';
+            }
+          } else if (c === 'Actions') {
+            // Render action buttons only for Admins (server must also enforce RBAC)
+            if (isAdmin) {
+              const editBtn = document.createElement('button');
+              editBtn.innerHTML = '✏️ Edit';
+              editBtn.className = 'ghost';
+              editBtn.style.cssText = 'font-size: 12px; padding: 4px 8px; margin-right: 4px;';
+              editBtn.onclick = () => openEditExpenseModal(row);
+              td.appendChild(editBtn);
+
+              const deleteBtn = document.createElement('button');
+              deleteBtn.innerHTML = '🗑️ Delete';
+              deleteBtn.className = 'ghost';
+              deleteBtn.style.fontSize = '12px';
+              deleteBtn.style.padding = '4px 8px';
+              deleteBtn.onclick = () => deleteExpense(row);
+              td.appendChild(deleteBtn);
+            }
+          } else if (c === 'Payment Date') {
+            td.textContent = formatDate(row.Date || row['Payment Date']);
+          }
+          else {
+            td.textContent = row[c] == null ? '' : row[c];
+          }
+          tr.appendChild(td); 
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      const expenseTableWrapper = document.createElement('div');
+      expenseTableWrapper.className = 'table-container';
+      expenseTableWrapper.appendChild(table);
+      expensesContainer.innerHTML='';
+      expensesContainer.appendChild(expenseTableWrapper);
+    }
+
+    async function deleteExpense(expenseToDelete) {
+      try {
+        // Require admin session before deleting
+        if(!(await ensureAdmin())) return;
+
+        if (!confirm('Are you sure you want to delete this expense? This action cannot be undone.')) {
+          return;
+        }
+
+        // Fetch the latest JSON data
+        const res = await fetch(READ_JSON_URL, { cache: 'no-store' });
+        if (!res.ok) throw new Error('Unable to fetch JSON: HTTP ' + res.status);
+        const json = await res.json();
+
+        // Find the index of the expense to remove from the 'Expenses' array
+        const expenseIndex = json.Expenses.findIndex(exp => {
+            // Normalize data from both objects for a reliable comparison
+            const amount1 = parseFloat(exp['Amount Spent'] || exp.Amount || 0);
+            const amount2 = parseFloat(expenseToDelete['Amount Spent'] || expenseToDelete.Amount || 0);
+            const date1 = exp.Date || exp['Payment Date'];
+            const date2 = expenseToDelete.Date || expenseToDelete['Payment Date'];
+            return exp['Expense Category'] === expenseToDelete['Expense Category'] &&
+                   amount1 === amount2 &&
+                   date1 === date2 &&
+                   exp['Vendor/Payee'] === expenseToDelete['Vendor/Payee'] &&
+                   exp['Notes'] === expenseToDelete['Notes'];
+        });
+
+        if (expenseIndex === -1) {
+          alert('Could not find the exact expense to delete in the source data. It might have been modified or deleted. Please refresh the page.');
+          return;
+        }
+
+        // Remove the expense and get the deleted item
+        const deletedItem = json.Expenses.splice(expenseIndex, 1)[0];
+        const deletedAmount = parseFloat(deletedItem['Amount Spent'] || deletedItem.Amount || 0);
+
+        // Determine the month of the deleted expense
+        const deletedMonth = deletedItem.Month || getMonthNameFromDateValue(deletedItem.Date || deletedItem['Payment Date']);
+
+        // Update the 'Total Expenses' in the corresponding month's data array
+        if (deletedMonth && json[deletedMonth] && Array.isArray(json[deletedMonth])) {
+            const totalExpensesRow = json[deletedMonth].find(item =>
+                String(item['Reference/Transaction ID'] || '').toLowerCase().includes('total expenses')
+            );
+
+            if (totalExpensesRow) {
+                const currentTotal = parseFloat(totalExpensesRow['Amount Received'] || 0);
+                totalExpensesRow['Amount Received'] = currentTotal - deletedAmount;
+            }
+        }
+
+        // Persist the updated JSON back to blob storage
+        if (UPDATE_BLOB_SAS_URL) {
+          const putRes = await fetch(UPDATE_BLOB_SAS_URL, {
+            method: 'PUT',
+            headers: { 'x-ms-blob-type': 'BlockBlob', 'Content-Type': 'application/json' },
+            body: JSON.stringify(json)
+          });
+          if (!putRes.ok) throw new Error('Blob update failed: HTTP ' + putRes.status);
+        } else {
+          alert('No backend configured to save changes. Set UPDATE_BLOB_SAS_URL in config.');
+          return;
+        }
+
+        // Clear cache and refresh the UI
+        clearCachedData();
+        processMaintenanceData(json);
+        alert('Expense deleted successfully.');
+
+      } catch (err) {
+        console.error('Failed to delete expense:', err);
+        alert('Failed to delete expense: ' + err.message);
+      }
+    }
+
+    async function deleteCollection(collectionRow){
+      try{
+        // Require admin session before deleting
+        if(!(await ensureAdmin())) return;
+
+        if(!confirm('Are you sure you want to delete this collection? This action cannot be undone.')) return;
+
+        // Fetch latest JSON
+        const res = await fetch(READ_JSON_URL, { cache: 'no-store' });
+        if(!res.ok) throw new Error('Unable to fetch JSON: HTTP '+res.status);
+        const json = await res.json();
+
+        const month = collectionRow.Month || collectionRow['Month'] || getMonthNameFromDateValue(collectionRow.Date || collectionRow['Date'] || collectionRow['Payment Date']);
+        if(!month || !json[month] || !Array.isArray(json[month])) throw new Error('Month data not found for deletion.');
+
+        const monthData = json[month];
+        // Find index similar to edit/update matching
+        const idx = monthData.findIndex(r=>{
+          const matchFlat = r['Flat Number'] == (collectionRow.Flat || collectionRow['Flat Number'] || collectionRow['Flat']);
+          const matchAmt = (parseFloat(r['Amount Received']||r.Amount||0)||0) === (parseFloat(collectionRow.Amount||collectionRow['Amount']||collectionRow['Amount Received']||0)||0);
+          const matchDate = (r.Date || r['Date'] || r['Payment Date'] || '') === (collectionRow.Date || collectionRow['Date'] || collectionRow['Payment Date'] || '');
+          const matchRef = (r['Reference/Transaction ID'] || '') === (collectionRow['Reference/Transaction ID'] || '');
+          return matchFlat && matchAmt && (matchDate || matchRef);
+        });
+
+        if(idx === -1) return alert('Collection record not found. It may have been modified. Please refresh.');
+
+        const deleted = monthData.splice(idx,1)[0];
+
+        // Recalculate month totals if sentinel present
+        recalcMonthCollections(json, month);
+
+        // Persist
+        if(UPDATE_BLOB_SAS_URL){
+          const putRes = await fetch(UPDATE_BLOB_SAS_URL, { method:'PUT', headers:{ 'x-ms-blob-type':'BlockBlob', 'Content-Type':'application/json' }, body: JSON.stringify(json) });
+          if(!putRes.ok) throw new Error('Blob update failed: HTTP '+putRes.status);
+        } else {
+          alert('No backend configured to save changes. Set UPDATE_BLOB_SAS_URL in config.');
+          return;
+        }
+
+        clearCachedData();
+        processMaintenanceData(json);
+        alert('Collection deleted successfully');
+
+      }catch(err){ console.error('Failed to delete collection', err); alert('Failed to delete collection: '+err.message); }
+    }
+
+    // Payment status toggling removed — use Edit to update payment fields instead.
+
+    function applyTabVisibility(){
+      // Show/hide controls based on tab
+      const topOverview = document.getElementById('topOverview');
+      const statsEl = document.getElementById('stats');
+      const filterSummaryEl = document.getElementById('filterSummary');
+      const topSummaryCardEl = document.getElementById('topSummaryCard');
+      const clearFiltersBtn = document.getElementById('clearFiltersSummary');
+      const dashboardContentEl = document.getElementById('dashboardContent');
+      const searchBox = document.getElementById('searchBox');
+      const exportExcelBtn = document.getElementById('exportExcel');
+      const exportCsvBtn = document.getElementById('exportCsv');
+
+      // Helper to hide top summary charts and destroy instances
+      function hideTopSummaryCharts(){
+        if(topOverview) topOverview.style.display='none';
+        try{
+          if(charts.paymentStatus){ charts.paymentStatus.destroy(); charts.paymentStatus = null; }
+          if(charts.monthly){ charts.monthly.destroy(); charts.monthly = null; }
+          if(charts.expenses){ charts.expenses.destroy(); charts.expenses = null; }
+        }catch(e){ /* ignore */ }
+      }
+
+      if(currentTab==='dashboard'){
+        // Hide summary and top controls when viewing Dashboard
+        if(topOverview) topOverview.style.display='none';
+        if(statsEl) statsEl.style.display='none';
+        if(filterSummaryEl) filterSummaryEl.style.display='none';
+        if(topSummaryCardEl) topSummaryCardEl.style.display='none';
+        if(clearFiltersBtn) clearFiltersBtn.style.display='none';
+        if(monthFilterContainer) monthFilterContainer.style.display='none';
+        if(dashboardContentEl) { dashboardContentEl.style.display = ''; }
+        // Hide search and export controls on dashboard
+        if(searchBox) searchBox.style.display='none';
+        if(exportExcelBtn) exportExcelBtn.style.display='none';
+        if(exportCsvBtn) exportCsvBtn.style.display='none';
+      }else if(currentTab === 'collected' || currentTab === 'expenses'){
+        // For Collected and Expenses views we hide the top summary charts
+        hideTopSummaryCharts();
+        // Keep the main stats and controls visible for these tabs
+        if(statsEl) statsEl.style.display='';
+        if(filterSummaryEl) filterSummaryEl.style.display='';
+        if(topSummaryCardEl) topSummaryCardEl.style.display='';
+        if(clearFiltersBtn) clearFiltersBtn.style.display='';
+        if(monthFilterContainer) monthFilterContainer.style.display='';
+        if(dashboardContentEl) { dashboardContentEl.style.display = 'none'; }
+        // Ensure search and export controls are visible for these tabs
+        if(searchBox) searchBox.style.display='';
+        if(exportExcelBtn) exportExcelBtn.style.display='';
+        if(exportCsvBtn) exportCsvBtn.style.display='';
+      }else{
+        // Default: show the top overview and controls
+        if(topOverview) topOverview.style.display='';
+        if(statsEl) statsEl.style.display='';
+        if(filterSummaryEl) filterSummaryEl.style.display='';
+        if(topSummaryCardEl) topSummaryCardEl.style.display='';
+        if(clearFiltersBtn) clearFiltersBtn.style.display='';
+        if(monthFilterContainer) monthFilterContainer.style.display='';
+        if(dashboardContentEl) { dashboardContentEl.style.display = 'none'; }
+        if(searchBox) searchBox.style.display='';
+        if(exportExcelBtn) exportExcelBtn.style.display='';
+        if(exportCsvBtn) exportCsvBtn.style.display='';
+      }
+    }
+
+    function render(){
+      applyTabVisibility();
+      renderFilterSummary();
+      renderTopSummary();
+      renderCharts();
+      if(currentTab === 'dashboard'){
+        renderDashboard();
+      }else{
+        // If not on dashboard, destroy dashboard-only charts to keep the UI hidden and free resources
+        try{
+          if(charts.dbPaymentStatus){ charts.dbPaymentStatus.destroy(); charts.dbPaymentStatus = null; }
+          if(charts.dbMonthly){ charts.dbMonthly.destroy(); charts.dbMonthly = null; }
+          if(charts.dbExpenses){ charts.dbExpenses.destroy(); charts.dbExpenses = null; }
+        }catch(e){ /* ignore */ }
+      }
+      if(currentTab==='collected') return renderCollectedTable();
+      if(currentTab==='expenses') return renderExpensesTable();
+      // Future tabs
+      statsDiv.innerHTML = '<div class="stat">🔮 Future tab</div>';
+      tableContainer.innerHTML = '<div class="small muted">🚧 Coming soon</div>';
+    }
+
+    function buildRowsFromMaintenanceJson(json){
+      const rows = [];
+      const sectionNames = Object.keys(json||{});
+      sectionNames.forEach(section=>{
+        if(['Expenses','Summary'].includes(section)) return;
+        const list = Array.isArray(json[section]) ? json[section] : [];
+        list.forEach(item=>{
+          const ref = String(item['Reference/Transaction ID']||'');
+          if(ref.toLowerCase().includes('total collections')) return;
+          const amountNum = Number(item['Amount Received']||0) || 0;
+          const dueNum = Number(item['Amount Due'] || item.Due || item['Due Amount'] || 0) || 0;
+          const flatRaw = item['Flat Number'];
+          const flatVal = Number.isFinite(flatRaw) ? (Number.isInteger(flatRaw)? flatRaw : Math.trunc(flatRaw)) : (flatRaw||'');
+          // Extract contact / phone if present (try common keys)
+          let contactRaw = null;
+          for(const k of Object.keys(item)){
+            const nk = k.toLowerCase();
+            if(['contact','phone','mobile','mobile number','phone number','mobile_no','mobile_no.','mobile_no'].includes(nk) || nk.includes('mobile') || nk.includes('phone')){ contactRaw = String(item[k]||'').trim(); break; }
+          }
+          // Normalize phone to E.164-ish 'whatsapp:+<digits>' if possible
+          let contact = '';
+          if(contactRaw){
+            const digits = contactRaw.replace(/[^0-9]/g,'');
+            if(digits.length===10) contact = '+91' + digits;
+            else if(digits.length>10) contact = '+' + digits;
+            else contact = contactRaw;
+          }
+          const row = {
+            Month: section,
+            Name: item['Resident Name']||'',
+            Flat: flatVal,
+            Paid: amountNum>0 ? 'Paid' : (dueNum>0 ? 'Unpaid' : ''),
+            Amount: amountNum,
+            Due: dueNum,
+            PaymentDate: formatDate(item['Date']||''),
+            Contact: contact,
+            Reminder: getReminderForRow({ Month: section, Flat: flatVal }),
+            'Payment Mode': item['Payment Mode']||'',
+            //'Reference/Transaction ID': ref,
+            Notes: item['Notes']||''
+          };
+          row.__paid = (toBooleanPaid(item.paid) || amountNum>0);
+          rows.push(row);
+        });
+      });
+      return rows;
+    }
+
+    function extractExpenses(json){
+      // Build monthly totals by scanning each month array for a 'Total Expenses' entry
+      monthlyExpenseTotals = {};
+      const keys = Object.keys(json || {});
+      keys.forEach(k => {
+        const arr = json[k];
+        if(!Array.isArray(arr)) return;
+        arr.forEach(item => {
+          if(item && String(item['Reference/Transaction ID']||'').toLowerCase().includes('total expenses')){
+            monthlyExpenseTotals[k] = parseFloat(item['Amount Received'] || item.Amount || item['Amount Spent'] || 0) || 0;
+          }
+        });
+      });
+      console.log('Monthly Expense Totals:', monthlyExpenseTotals);
+
+      // Normalize the Expenses array into a usable list
+      const list = Array.isArray(json && json['Expenses']) ? json['Expenses'] : [];
+      const out = list.filter(x => x && (x['Expense Category'] || x['Amount Spent'] || x.Amount)).map(x => {
+        const r = Object.assign({}, x);
+
+        // Normalize amount fields
+        if (r['Amount Spent'] !== undefined && r['Amount Spent'] !== null) {
+          r['Amount Spent'] = parseFloat(r['Amount Spent']) || 0;
+          r.Amount = r['Amount Spent'];
+        } else if (r.Amount !== undefined && r.Amount !== null) {
+          r.Amount = parseFloat(r.Amount) || 0;
+          r['Amount Spent'] = r.Amount;
+        }
+
+        // Normalize date fields: use Payment Date if present
+        if (r['Payment Date'] && !r.Date) {
+          r.Date = r['Payment Date'];
+        }
+
+        // Determine month: prefer explicit Month field, otherwise derive from Date
+        if (r.Month) {
+          r.__Month = String(r.Month);
+        } else if (r.Date) {
+          const d = new Date(r.Date);
+          if(!isNaN(d)) r.__Month = d.toLocaleString('en-US', { month: 'long' });
+        } else {
+          r.__Month = '';
+        }
+
+        return r;
+      });
+
+      return out;
+    }
+
+    function normalizeRows(rows){
+      return rows.map(r=>{
+        const out = {};
+        const aliases = {name:['name','owner','resident'], flat:['flat','flatno','flat no','flat_number'], amount:['amount','maintenance','fees'], paid:['paid','status'], paymentdate:['paymentdate','date'], contact:['contact','phone','mobile']};
+        const lowerMap = {};
+        for(const k of Object.keys(r)) lowerMap[normalizeKey(k)] = k;
+        for(const target of ['Name','Flat','Amount','Paid','PaymentDate','Contact']){
+          let foundKey=null;
+          for(const alias of (aliases[target.toLowerCase()]||[])){
+            if(lowerMap[alias]){foundKey=lowerMap[alias];break;}
+          }
+          if(!foundKey && lowerMap[target.toLowerCase()]) foundKey=lowerMap[target.toLowerCase()];
+          if(foundKey) out[target]=r[foundKey];
+        }
+        for(const k of Object.keys(r)){
+          if(['name','flat','amount','paid','paymentdate','contact'].includes(normalizeKey(k))) continue;
+          out[k]=r[k];
+        }
+        out.__paid = toBooleanPaid(out.Paid);
+        if(out.Amount) out.Amount=out.Amount.toString().replace(/[₹, ]/g,'');
+        if(out.PaymentDate) out.PaymentDate = formatDate(out.PaymentDate);
+        return out;
+      });
+    }
+
+    function renderFilterSummary(){
+      const badges = [];
+      const search = (searchBox.value||'').trim();
+      if(search){ badges.push(`<span class="badge">🔍 Search: ${escapeHtml(search)}</span>`); }
+      if(currentTab==='collected'){
+        const selMonths = getSelectedMonths();
+        if(selMonths && selMonths.length) badges.push(`<span class="badge">📅 Month: ${escapeHtml(selMonths.join(', '))}</span>`);
+        if(paidView==='paid') badges.push('<span class="badge">✅ Paid</span>');
+        if(paidView==='unpaid') badges.push('<span class="badge">❌ Unpaid</span>');
+        for(const k in columnFilters){
+          const v = columnFilters[k]; if(v) badges.push(`<span class="badge">${escapeHtml(k)}: ${escapeHtml(String(v))}</span>`);
+        }
+      }else if(currentTab==='expenses'){
+        for(const k in expensesColumnFilters){
+          const v = expensesColumnFilters[k]; if(v) badges.push(`<span class="badge">${escapeHtml(k)}: ${escapeHtml(String(v))}</span>`);
+        }
+      }
+      filterSummary.innerHTML = badges.length? badges.join(' ') : '🎯 No filters applied';
+    }
+
+    function escapeHtml(s){
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function getCurrentDisplay(){
+      if(currentTab==='expenses') return getExpensesDisplay();
+      // default collected
+      return getCollectedDisplay();
+    }
+
+    // Export CSV (current tab & filters)
+    exportCsvBtn.addEventListener('click',()=>{
+      const rows = getCurrentDisplay();
+      if(!rows.length) return alert('No data');
+      // Respect visible columns (hide Contact for non-admins)
+      const cols = rows.length > 0 ? Object.keys(rows[0]).filter(c=>!c.startsWith('__') && c !== 'Reminder' && (isAdmin || c !== 'Contact')) : [];
+      const lines=[cols.join(',')];
+      rows.forEach(r=>{lines.push(cols.map(c=>escapeCsv(r[c]||'')).join(','));});
+      const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+      const url=URL.createObjectURL(blob);
+      const filename = currentTab==='expenses' ? 'expenses_export.csv' : 'maintenance_export.csv';
+      downloadUrl(url, filename);
+      URL.revokeObjectURL(url);
+    });
+    function escapeCsv(v){if(v==null) return ''; const s=String(v).replace(/"/g,'""'); if(s.includes(',')||s.includes('"')||s.includes('\n')) return '"'+s+'"'; return s;}
+
+    // Export Excel (current tab & filters)
+    exportExcelBtn.addEventListener('click',()=>{
+      const rows = getCurrentDisplay();
+      if(!rows.length) return alert('No data');
+      // Respect visible columns (hide Contact for non-admins)
+      const visibleCols = rows.length > 0 ? Object.keys(rows[0]).filter(c=>!c.startsWith('__') && c !== 'Reminder' && (isAdmin || c !== 'Contact')) : [];
+      const outRows=rows.map(r=>{const o={}; for(const k of visibleCols) o[k]=r[k]; return o;});
+      const ws=XLSX.utils.json_to_sheet(outRows);
+      const wb=XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb,ws, currentTab==='expenses' ? 'Expenses' : 'Maintenance');
+      const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+      const blob=new Blob([wbout],{type:'application/octet-stream'});
+      const url=URL.createObjectURL(blob);
+      const filename = currentTab==='expenses' ? 'expenses_export.xlsx' : 'maintenance_export.xlsx';
+      downloadUrl(url, filename);
+      URL.revokeObjectURL(url);
+    });
+    function downloadUrl(url,filename){const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();}
+
+    // Cache configuration
+    const CACHE_KEY = 'maintenance_data_cache';
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+    // Check if cached data is still valid
+    function isCacheValid(cacheData) {
+      if (!cacheData || !cacheData.timestamp) return false;
+      return (Date.now() - cacheData.timestamp) < CACHE_DURATION;
+    }
+
+    // Get cached data
+    function getCachedData() {
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (!cached) return null;
+        const cacheData = JSON.parse(cached);
+        return isCacheValid(cacheData) ? cacheData.data : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // Set cached data
+    function setCachedData(data) {
+      try {
+        const cacheData = {
+          data: data,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+      } catch (e) {
+        // Ignore storage errors
+      }
+    }
+
+    // Clear cached data
+    function clearCachedData() {
+      try {
+        localStorage.removeItem(CACHE_KEY);
+      } catch (e) {
+        // Ignore storage errors
+      }
+    }
+
+    // Fetch JSON directly from Azure Blob Storage with caching
+    async function loadFromAzure(){
+      try{
+        // Try to load from cache first
+        const cachedData = getCachedData();
+        if (cachedData) {
+          console.log('Loading data from cache');
+          processMaintenanceData(cachedData);
+          return;
+        }
+
+        console.log('Loading data from Azure Blob Storage');
+        const res = await fetch(READ_JSON_URL, {
+          cache: 'no-cache',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        
+        const lm = res.headers && res.headers.get ? res.headers.get('Last-Modified') : null;
+        if(lm){
+          const lmDate = new Date(lm);
+          const lastUpdatedEl = document.getElementById('lastUpdated');
+          if(lastUpdatedEl && !isNaN(lmDate)) lastUpdatedEl.textContent = 'Last updated: ' + lmDate.toLocaleString();
+        }
+        
+        const json = await res.json();
+        
+        // Cache the data
+        setCachedData(json);
+        
+        processMaintenanceData(json);
+      }catch(err){
+        // If network fails, try to use stale cache
+        const staleCache = getCachedData();
+        if (staleCache) {
+          console.log('Network failed, using stale cache');
+          processMaintenanceData(staleCache);
+          return;
+        }
+        tableContainer.innerHTML = '<div class="small muted">Error loading data: '+err.message+'</div>';
+      }
+    }
+
+    // Process maintenance data (extracted from loadFromAzure)
+    function processMaintenanceData(json) {
+      if(Array.isArray(json)){
+        rawData = normalizeRows(json);
+        expensesData = [];
+        summaryData = [];
+      }else{
+        rawData = buildRowsFromMaintenanceJson(json);
+        expensesData = extractExpenses(json);
+        summaryData = Array.isArray(json && json['Summary']) ? json['Summary'] : [];
+      }
+      if(!rawData || !rawData.length) throw new Error('No records found');
+      
+      // Reset filters before populating new data
+      searchBox.value = '';
+      paidView = 'all';
+      columnFilters = {};
+      expensesColumnFilters = {};
+      
+      // This will set the latest month as default and trigger data rendering
+      populateMonthFilter();
+      renderTopSummary();
+      render();
+    }
+
+    // Optional config via inline <script id="app-config" type="application/json"> or config.json (http/https only)
+    async function loadConfig(){
+      try{
+        // Inline JSON config support (works with file://)
+        const inline = document.getElementById('app-config');
+        if(inline && inline.textContent){
+          try{
+            const cfg = JSON.parse(inline.textContent);
+            // adminPassword is not supported (do not put credentials in client-side config)
+            if(cfg && typeof cfg.updateEndpoint === 'string' && cfg.updateEndpoint.trim().length){ UPDATE_ENDPOINT = cfg.updateEndpoint; }
+            if(cfg && typeof cfg.updateBlobSasUrl === 'string' && cfg.updateBlobSasUrl.trim().length){ UPDATE_BLOB_SAS_URL = cfg.updateBlobSasUrl; }
+          }catch(_){}
+        }
+        // Skip network fetch on file:// to avoid CORS noise
+        if(location && location.protocol === 'file:') return;
+        const res = await fetch('config.json');
+        if(!res.ok) return;
+        const cfg = await res.json();
+        // adminPassword is not supported (do not put credentials in client-side config)
+        if(cfg && typeof cfg.updateEndpoint === 'string' && cfg.updateEndpoint.trim().length){ UPDATE_ENDPOINT = cfg.updateEndpoint; }
+        if(cfg && typeof cfg.updateBlobSasUrl === 'string' && cfg.updateBlobSasUrl.trim().length){ UPDATE_BLOB_SAS_URL = cfg.updateBlobSasUrl; }
+        if(cfg && typeof cfg.receiptUploadSasUrl === 'string' && cfg.receiptUploadSasUrl.trim().length){ UPDATE_RECEIPT_CONTAINER_SAS_URL = cfg.receiptUploadSasUrl; }
+      }catch(e){ /* ignore */ }
+    }
+
+    async function sendUpdateToBackend(row){
+      if(!UPDATE_ENDPOINT) return; // no backend configured
+      const payload = {
+        action: row.__paid ? 'mark_paid' : 'mark_unpaid',
+        row: row
+      };
+      await fetch(UPDATE_ENDPOINT, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    }
+
+    function todayIso(){ const d=new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const da=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${da}`; }
+
+    async function applyPaidToggle(row, makePaid){
+      // update local row first
+      row.__paid = !!makePaid;
+      row.Paid = row.__paid ? 'Paid' : '';
+      row.PaymentDate = row.__paid ? formatDate(new Date()) : '';
+      if(row.__paid){ row.Amount = 2000; }
+      // Backend webhook
+      if(UPDATE_ENDPOINT){
+        await sendUpdateToBackend(row);
+        return;
+      }
+      // Direct blob update if SAS URL provided
+      if(!UPDATE_BLOB_SAS_URL) return;
+      const res = await fetch(READ_JSON_URL, {cache:'no-store'});
+      if(!res.ok) throw new Error('Unable to fetch current JSON: HTTP '+res.status);
+      const json = await res.json();
+      const month = row.Month;
+      if(!json || !json[month] || !Array.isArray(json[month])) throw new Error('Month not found in JSON');
+      const sheet = json[month];
+      const idx = sheet.findIndex(item=>{
+        const flat = item['Flat Number'];
+        const name = (item['Resident Name']||'').toString().trim().toLowerCase();
+        const rName = (row.Name||'').toString().trim().toLowerCase();
+        const flatStr = (flat==null? '' : String(Math.trunc(Number(flat)||flat)));
+        const rowFlatStr = (row.Flat==null? '' : String(Math.trunc(Number(row.Flat)||row.Flat)));
+        const flatMatch = flatStr === rowFlatStr;
+        const nameMatch = !rName || !name ? flatMatch : (flatMatch && name===rName);
+        return nameMatch;
+      });
+      if(idx===-1) throw new Error('Matching record not found in JSON');
+      if(makePaid){
+        sheet[idx]['Amount Received'] = 2000;
+        sheet[idx]['Date'] = todayIso();
+      }else{
+        sheet[idx]['Amount Received'] = 0;
+        sheet[idx]['Date'] = '';
+      }
+      const putRes = await fetch(UPDATE_BLOB_SAS_URL, { method:'PUT', headers:{'x-ms-blob-type':'BlockBlob','Content-Type':'application/json'}, body: JSON.stringify(json) });
+      if(!putRes.ok) throw new Error('Blob update failed: HTTP '+putRes.status);
+    }
+
+    function getMonthSortValue(monthName) {
+      const monthMap = {
+        'January': 1, 'February': 2, 'March': 3, 'April': 4,
+        'May': 5, 'June': 6, 'July': 7, 'August': 8,
+        'September': 9, 'October': 10, 'November': 11, 'December': 12
+      };
+      
+      // Extract year if present (e.g., "January 2024")
+      const parts = monthName.split(' ');
+      const month = monthMap[parts[0]] || 0;
+      const year = parts[1] ? parseInt(parts[1]) : new Date().getFullYear();
+      
+      // Create a sortable value (year * 100 + month)
+      return (year * 100) + month;
+    }
+
+    function populateMonthFilter(){
+      if(!monthFilter) return;
+      const seen = new Set();
+      const months = [];
+      
+      // Collect unique months
+      rawData.forEach(r => {
+        if(r.Month && !seen.has(r.Month)){
+          seen.add(r.Month);
+          months.push(r.Month);
+        }
+      });
+      
+      // Sort months chronologically (most recent first)
+      months.sort((a, b) => getMonthSortValue(b) - getMonthSortValue(a));
+
+      console.log('populateMonthFilter months:', months);
+
+      const panel = document.getElementById('monthFilterPanel');
+      if(!panel) return;
+
+      // Build checkbox list (All Months first)
+      const nodes = [];
+      nodes.push(`<label style="display:block"><input type="checkbox" data-month="all" value="all" checked> 📅 All Months</label>`);
+      months.forEach(month => {
+        nodes.push(`<label style="display:block;margin-left:6px"><input type="checkbox" data-month="${month}" value="${month}"> ${month}</label>`);
+      });
+      // Add mobile-friendly action buttons inside the panel as well
+      nodes.push(`<div class="actions" style="margin-top:8px"><button id="monthSelectAllPanel" class="ghost">Select All</button> <button id="monthClearAllPanel" class="ghost">Clear</button></div>`);
+      panel.innerHTML = nodes.join('');
+
+      // Wire up panel action buttons (panels may have their own buttons on mobile)
+      const panelSelectAll = panel.querySelector('#monthSelectAllPanel');
+      const panelClearAll = panel.querySelector('#monthClearAllPanel');
+      if(panelSelectAll) panelSelectAll.addEventListener('click', ()=>{ panel.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=true); updateMonthFilterValueFromPanel(); });
+      if(panelClearAll) panelClearAll.addEventListener('click', ()=>{ panel.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=false); const allCb=panel.querySelector('input[data-month="all"]'); if(allCb) allCb.checked=true; updateMonthFilterValueFromPanel(); });
+
+      // Update hidden compatibility input (keeps older code/tests working)
+      const hidden = document.getElementById('monthFilterValue');
+      if(hidden) hidden.value = months.length>0 ? months[0] : 'all';
+      // Also set legacy compat hidden now, to ensure tests reading #monthFilter see a value immediately
+      const compat = document.getElementById('monthFilter'); if(compat) compat.value = hidden.value;
+
+      // Set the button label
+      const label = document.getElementById('monthFilterBtnLabel');
+      if(label){ label.textContent = months.length>0 ? months[0] : 'All Months'; }
+
+      // Wire checkbox handlers
+      panel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', ()=>{
+          // If 'all' checked, uncheck others; otherwise uncheck 'all'
+          const allCb = panel.querySelector('input[data-month="all"]');
+          const otherCbs = Array.from(panel.querySelectorAll('input[type="checkbox"][data-month]:not([data-month="all"])'));
+          if(cb.dataset.month === 'all'){
+            if(cb.checked){ otherCbs.forEach(o=>o.checked=false); }
+          } else {
+            if(cb.checked && allCb) allCb.checked = false;
+            const anyChecked = otherCbs.some(o=>o.checked);
+            if(!anyChecked && allCb) allCb.checked = true;
+          }
+          updateMonthFilterValueFromPanel();
+        });
+      });
+
+      // Default selection: most recent month checked
+      if(months.length>0){
+        const first = panel.querySelector(`input[value="${months[0]}"]`);
+        if(first){ first.checked = true; const allCb = panel.querySelector('input[data-month="all"]'); if(allCb) allCb.checked=false; }
+      }
+
+      updateMonthFilterValueFromPanel();
+    }
+
+    // Legacy: monthFilter was previously a select; now we use the hidden input `monthFilter` and listen on its changes (set up below).
+    searchBox.addEventListener('input', debounce(render,300));
+    // Listen for changes on hidden inputs (compatibility with both hidden ids)
+    const monthFilterHidden = document.getElementById('monthFilterValue');
+    if(monthFilterHidden) monthFilterHidden.addEventListener('change', render);
+    const monthFilterCompat = document.getElementById('monthFilter');
+    if(monthFilterCompat) monthFilterCompat.addEventListener('change', render);
+
+    // Wire up the visible dropdown button and action buttons for collected tab
+    const monthFilterBtn = document.getElementById('monthFilterBtn');
+    const monthFilterPanel = document.getElementById('monthFilterPanel');
+    if(monthFilterBtn && monthFilterPanel){
+      monthFilterBtn.addEventListener('click', (e)=>{ e.stopPropagation();
+        if(monthFilterPanel.style.display === 'block'){ monthFilterPanel.style.display = 'none'; return; }
+        if(window.innerWidth > 600){
+          monthFilterPanel.style.left = '0px';
+          monthFilterPanel.style.minWidth = monthFilterBtn.offsetWidth + 'px';
+          monthFilterPanel.style.right = 'auto';
+        } else {
+          monthFilterPanel.style.left = '';
+          monthFilterPanel.style.minWidth = '';
+          monthFilterPanel.style.right = '';
+        }
+        monthFilterPanel.style.display = 'block';
+        monthFilterPanel.scrollTop = 0;
+      });
+      monthFilterPanel.addEventListener('click', e=>e.stopPropagation());
+      document.addEventListener('click', ()=>{ if(monthFilterPanel) monthFilterPanel.style.display='none'; });
+      window.addEventListener('resize', debounce(()=>{ if(monthFilterPanel) monthFilterPanel.style.display='none'; try{ Object.values(charts||{}).forEach(c=>{ if(c && typeof c.resize === 'function'){ c.resize(); c.update(); }}); }catch(e){} }, 160));
+    }
+
+    // Wire up the visible dropdown button and action buttons for dashboard tab
+    const dashboardMonthFilterBtn = document.getElementById('dashboardMonthFilterBtn');
+    const dashboardMonthFilterPanel = document.getElementById('dashboardMonthFilterPanel');
+    if(dashboardMonthFilterBtn && dashboardMonthFilterPanel){
+      dashboardMonthFilterBtn.addEventListener('click', (e)=>{ e.stopPropagation();
+        if(dashboardMonthFilterPanel.style.display === 'block'){ dashboardMonthFilterPanel.style.display = 'none'; return; }
+        if(window.innerWidth > 600){
+          dashboardMonthFilterPanel.style.left = '0px';
+          dashboardMonthFilterPanel.style.minWidth = dashboardMonthFilterBtn.offsetWidth + 'px';
+          dashboardMonthFilterPanel.style.right = 'auto';
+        } else {
+          dashboardMonthFilterPanel.style.left = '';
+          dashboardMonthFilterPanel.style.minWidth = '';
+          dashboardMonthFilterPanel.style.right = '';
+        }
+        dashboardMonthFilterPanel.style.display = 'block';
+        dashboardMonthFilterPanel.scrollTop = 0;
+      });
+      dashboardMonthFilterPanel.addEventListener('click', e=>e.stopPropagation());
+      document.addEventListener('click', ()=>{ if(dashboardMonthFilterPanel) dashboardMonthFilterPanel.style.display='none'; });
+      window.addEventListener('resize', debounce(()=>{ if(dashboardMonthFilterPanel) dashboardMonthFilterPanel.style.display='none'; try{ Object.values(charts||{}).forEach(c=>{ if(c && typeof c.resize === 'function'){ c.resize(); c.update(); }}); }catch(e){} }, 160));
+    }
+    // Outside buttons removed (use the panel's Select All / Clear actions for both desktop and mobile) 
+
+    function updateMonthFilterValueFromPanel(){
+      const panel = document.getElementById('monthFilterPanel');
+      const hidden = document.getElementById('monthFilterValue');
+      const btnLabel = document.getElementById('monthFilterBtnLabel');
+      if(!panel || !hidden) return;
+      const allCb = panel.querySelector('input[data-month="all"]');
+      const other = Array.from(panel.querySelectorAll('input[type="checkbox"][data-month]:not([data-month="all"])'));
+      const selected = other.filter(c=>c.checked).map(c=>c.value);
+      if((allCb && allCb.checked) || selected.length===0){
+        hidden.value = 'all';
+      // Keep compatibility: also update legacy hidden input if present
+      const compat = document.getElementById('monthFilter'); if(compat) compat.value = hidden.value;
+      if(btnLabel) btnLabel.textContent = 'All Months';
+    } else {
+      const val = selected.join(',');
+      hidden.value = val;
+      const compat2 = document.getElementById('monthFilter'); if(compat2) compat2.value = val;
+      if(btnLabel) btnLabel.textContent = val;
+    }
+    // Keep compatibility: dispatch 'change' on both hidden inputs
+    hidden.dispatchEvent(new Event('change'));
+    const compatDispatch = document.getElementById('monthFilter'); if(compatDispatch) compatDispatch.dispatchEvent(new Event('change'));
+  }
+
+    function getSelectedMonths(){
+      const panel = document.getElementById('monthFilterPanel');
+      const hidden = document.getElementById('monthFilterValue');
+      if(panel){
+        const allCb = panel.querySelector('input[data-month="all"]');
+        const other = Array.from(panel.querySelectorAll('input[type="checkbox"][data-month]:not([data-month="all"])'));
+        const selected = other.filter(c=>c.checked).map(c=>c.value);
+        if((allCb && allCb.checked) || selected.length===0) return null;
+        return selected;
+      }
+      if(!hidden) return null;
+      const v = (hidden.value||'').trim();
+      if(!v || v==='all') return null;
+      return v.split(',').map(s=>s.trim()).filter(Boolean);
+    }
+    tabCollectedBtn.addEventListener('click',()=>{ 
+      currentTab='collected'; 
+      updateTabControls();
+      columnFilters={}; 
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+      tabCollectedBtn.classList.add('active');
+      document.getElementById('collectedContent').classList.add('active');
+      render(); 
+    });
+    tabExpensesBtn.addEventListener('click',()=>{ 
+      currentTab='expenses'; 
+      updateTabControls();
+      expensesColumnFilters={}; 
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+      tabExpensesBtn.classList.add('active');
+      document.getElementById('expensesContent').classList.add('active');
+      render(); 
+    });
+    function debounce(fn,wait){let t;return function(...a){clearTimeout(t);t=setTimeout(()=>fn(...a),wait);};}
+    function debounce(fn,wait){let t;return function(...a){clearTimeout(t);t=setTimeout(()=>fn(...a),wait);};}
+
+    // Show/hide action buttons based on selected tab
+    function updateTabControls(){
+      try{
+        // Only show Add buttons to admins
+        const showAdd = !!isAdmin;
+        if(currentTab === 'collected'){
+          if(addExpenseBtn) addExpenseBtn.style.display = 'none';
+          if(addCollectionBtn) addCollectionBtn.style.display = showAdd ? 'inline-block' : 'none';
+        } else if(currentTab === 'expenses'){
+          if(addCollectionBtn) addCollectionBtn.style.display = 'none';
+          if(addExpenseBtn) addExpenseBtn.style.display = showAdd ? 'inline-block' : 'none';
+        } else {
+          if(addCollectionBtn) addCollectionBtn.style.display = showAdd ? 'inline-block' : 'none';
+          if(addExpenseBtn) addExpenseBtn.style.display = showAdd ? 'inline-block' : 'none';
+        }
+      }catch(e){console.warn('updateTabControls error',e)}
+    }
+
+    // Initialize controls visibility according to initial tab
+    updateTabControls();
+
+    // Clear all filters (summary section button)
+    clearFiltersSummaryBtn.addEventListener('click',()=>{
+      searchBox.value='';
+      paidView='all';
+      // Deselect everything and select 'all' in the panel
+      const panel=document.getElementById('monthFilterPanel');
+      if(panel){ panel.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=false); const allCb=panel.querySelector('input[data-month="all"]'); if(allCb) allCb.checked=true; updateMonthFilterValueFromPanel(); }
+      columnFilters={};
+      expensesColumnFilters={};
+      render();
+    });
+
+    // Refresh data button (bypass cache)
+    refreshDataBtn.addEventListener('click', async ()=>{
+      clearCachedData();
+      refreshDataBtn.textContent = '🔄 Loading...';
+      refreshDataBtn.disabled = true;
+      try {
+        await loadFromAzure();
+      } finally {
+        refreshDataBtn.textContent = '🔄 Refresh Data';
+        refreshDataBtn.disabled = false;
+      }
+    });
+
+    // Load on page ready
+    (async()=>{ await loadConfig(); await loadFromAzure(); updateVisitCount(); })();
+
+  </script>
+</body>
+</html>
